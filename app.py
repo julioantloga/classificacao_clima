@@ -4,17 +4,21 @@ import pandas as pd
 
 app = Flask(__name__)
 
-@app.route("/tenants")
+@app.route("/")
+def index():
+    return "API Comentários Clima rodando com sucesso!"
+
+@app.route("/tenants/")
 def listar_tenants():
     df = pd.read_sql("SELECT * FROM tenant", con=engine)
     return jsonify(df.to_dict(orient="records"))
 
-@app.route("/pesquisas")
+@app.route("/pesquisas/")
 def listar_pesquisas():
     df = pd.read_sql("SELECT * FROM pesquisa", con=engine)
     return jsonify(df.to_dict(orient="records"))
 
-@app.route("/comentarios")
+@app.route("/comentarios/")
 def listar_comentarios():
     query = "SELECT * FROM comentarios_pesquisa"
     filtros = []
@@ -33,7 +37,7 @@ def listar_comentarios():
     df = pd.read_sql(query, con=engine)
     return jsonify(df.to_dict(orient="records"))
 
-@app.route("/comentarios/<int:pesquisa_id>")
+@app.route("/comentarios/<int:pesquisa_id>/")
 def listar_comentarios_por_pesquisa(pesquisa_id):
     df = pd.read_sql(
         "SELECT * FROM comentarios_pesquisa WHERE pesquisa_id = %s",
