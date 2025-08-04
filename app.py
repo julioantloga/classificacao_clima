@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request
 from db_config import engine
 import pandas as pd
+import os
 
 app = Flask(__name__)
 
@@ -47,4 +48,5 @@ def listar_comentarios_por_pesquisa(pesquisa_id):
     return jsonify(df.to_dict(orient="records"))
 
 if __name__ == "__main__":
-    app.run()
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
