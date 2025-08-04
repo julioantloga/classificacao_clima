@@ -1,2 +1,0 @@
-
-print("helklo world")
