@@ -1,8 +1,6 @@
 image: node:20
-
 stages:
   - deploy
-
 deploy_to_railway:
   stage: deploy
   script:
