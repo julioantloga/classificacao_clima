@@ -5,6 +5,6 @@ deploy_to_railway:
   stage: deploy
   script:
     - npm install -g @railway/cli
-    - railway up --yes
+    - railway up
   only:
     - main
