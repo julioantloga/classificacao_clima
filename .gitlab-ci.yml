@@ -1,11 +1,14 @@
+image: ghcr.io/railwayapp/cli:latest
+
 workflow:
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 railway-deploy:
   stage: deploy
-  image: ghcr.io/railwayapp/cli:latest
   variables:
     SVC_ID: my-service-id
   script:
     - railway up --service=$SVC_ID
+  only:
+    - main
