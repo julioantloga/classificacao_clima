@@ -1,10 +1,11 @@
-image: node:20
-stages:
-  - deploy
-deploy_to_railway:
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+railway-deploy:
   stage: deploy
+  image: ghcr.io/railwayapp/cli:latest
+  variables:
+    SVC_ID: my-service-id
   script:
-    - npm install -g @railway/cli
-    - railway up
-  only:
-    - main
+    - railway up --service=$SVC_ID
