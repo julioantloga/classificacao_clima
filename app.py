@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, request
-from db_config import engine
+from db_config import engine, BASE_URL
 import pandas as pd
 import os
 import requests
@@ -14,12 +14,12 @@ def insert_with_pandas(table_name, data_dict):
 # Add Tenant
 @app.route('/adiciona_tenant/')
 def call_to_action():
-    url = "https://classificacao-clima-production.up.railway.app/tenant/"
+    url = f"{BASE_URL}/tenant/"
     payload = {"tenant_name": "Nome da empresa"}
     headers = {"Content-Type": "application/json"}
 
-    response = request.post(url, json=payload, headers=headers)
-    print(response.json())
+    response = requests.post(url, json=payload, headers=headers)
+    return jsonify(response.json()), response.status_code
 
 # Add Tenant
 @app.route('/tenant/', methods=['POST'])
