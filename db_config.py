@@ -7,7 +7,6 @@ from sqlalchemy import create_engine
 DATABASE_URL = os.environ.get("DATABASE_URL")
 BASE_URL = os.environ.get("BASE_URL")
 
-
 # Corrige o prefixo do Heroku se necessário
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL não está definida!")
