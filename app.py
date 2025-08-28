@@ -1,62 +1,89 @@
-from flask import Flask, jsonify, request, send_from_directory
-from db_config import engine, BASE_URL
+# app.py
+from flask import Flask, request, render_template, send_from_directory, jsonify
 import pandas as pd
 import os
-import requests
 
-app = Flask(__name__)
+from service.classification_service import classifica_comentarios
+from service.survey_repository import insert_survey
 
-@app.route('/')
+app = Flask(__name__, static_folder="static", template_folder="templates")
+
+def read_csv_flex(file_storage):
+    """Leitura robusta do CSV vindo de request.files['...']"""
+    file_storage.stream.seek(0)
+    try:
+        return pd.read_csv(file_storage, sep=None, engine="python", encoding="utf-8", on_bad_lines="skip")
+    except UnicodeDecodeError:
+        file_storage.stream.seek(0)
+        return pd.read_csv(file_storage, sep=None, engine="python", encoding="latin-1", on_bad_lines="skip")
+
+@app.route("/")
 def home():
-    return send_from_directory('static', 'index.html')
+    return send_from_directory("static", "index.html")
 
-@app.route('/classifica_comentarios', methods=['POST'])
-def classifica_comentarios():
-    if 'campanha' not in request.files or 'pessoas' not in request.files:
-        return jsonify({"error": "Arquivos não enviados"}), 400
+@app.route("/classifica_comentarios", methods=["POST"])
+def classifica_comentarios_route():
+    if "campanha" not in request.files or "pessoas" not in request.files:
+        return jsonify({"error": "Arquivos 'campanha' e 'pessoas' são obrigatórios."}), 400
 
-    campanha_file = request.files['campanha']
-    pessoas_file = request.files['pessoas']
+    campanha_file = request.files["campanha"]
+    pessoas_file  = request.files["pessoas"]
 
     try:
-        # Carrega os DataFrames dos arquivos CSV
-        df_campanha = pd.read_csv(campanha_file)
-        df_pessoas = pd.read_csv(pessoas_file)
+        # Ler CSVs
+        df_campanha = read_csv_flex(campanha_file)
+        df_info     = read_csv_flex(pessoas_file)
 
-        # Aqui entra a lógica de classificação real:
-        # Exemplo: classificar_comentarios(df_campanha, df_pessoas)
-        # Para fins de protótipo, apenas um print:
-        print("Campanha:", df_campanha.head())
-        print("Pessoas:", df_pessoas.head())
+        # Campos da seção "Configuração"
+        config = {
+            "nome_pesquisa": request.form.get("nome_pesquisa"),
+            "data_pesquisa": request.form.get("data_pesquisa"),
+            "org_top": request.form.get("org_top", type=int),
+            "org_bottom": request.form.get("org_bottom", type=int),
+        }
 
-        return jsonify({"message": "Classificação concluída com sucesso!"})
+        survey_id = insert_survey(config.get("nome_pesquisa"))
+
+        # Classificação → df_final
+        df_final = classifica_comentarios(df_campanha, df_info, survey_id)
+
+        # Monta tabela HTML (limitando para não pesar a página)
+        shown = 200
+        display_df = df_final.head(shown).copy()
+        table_html = display_df.to_html(
+            classes="striped highlight responsive-table",
+            index=False,
+            border=0
+        )
+
+        return render_template(
+            "resultados.html",                 # <-- usa 'resultados.html' (plural)
+            message="Classificação concluída com sucesso!",
+            meta=config,
+            table_html=table_html,
+            row_count=len(df_final),
+            shown_rows=len(display_df),
+        ), 200
+
+    except ValueError as ve:
+        return render_template(
+            "resultados.html",
+            message=f"Erro de validação: {ve}",
+            meta={},
+            table_html="",
+            row_count=0,
+            shown_rows=0,
+        ), 400
+
     except Exception as e:
-        return jsonify({"error": f"Erro ao processar arquivos: {str(e)}"}), 500
+        return render_template(
+            "resultados.html",
+            message=f"Erro ao processar: {e}",
+            meta={},
+            table_html="",
+            row_count=0,
+            shown_rows=0,
+        ), 500
 
-
-""""
-# Executes INSERT into the database
-def insert_with_pandas(table_name, data_dict):
-    df = pd.DataFrame([data_dict])
-    df.to_sql(table_name, con=engine, if_exists="append", index=False)
-    
-# Add Tenant
-@app.route('/adiciona_tenant/')
-def call_to_action():
-    url = f"{BASE_URL}/tenant/"
-    payload = {"tenant_name": "Nome da empresa"}
-    headers = {"Content-Type": "application/json"}
-
-    response = requests.post(url, json=payload, headers=headers)
-    return jsonify(response.json()), response.status_code
-
-# Add Tenant
-@app.route('/tenant/', methods=['POST'])
-def create_tenant():
-    data = request.get_json()
-    if not data.get("tenant_name"):
-        return jsonify({"error": "tenant_name é obrigatório"}), 400
-
-    insert_with_pandas("tenant", {"tenant_name": data["tenant_name"]})
-    return jsonify({"message": "Tenant criado com sucesso"}), 201
-"""
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=True)

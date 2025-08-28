@@ -1,0 +1,139 @@
+<!-- static/index.html -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Classificação de Comentários</title>
+
+  <!-- Materialize CSS -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js" defer></script>
+
+  <style>
+    body { background: #f5f5f5; padding: 2rem; }
+    .container { max-width: 900px; }
+    .card { border-radius: 8px; }
+    .btn-block { width: 100%; }
+    .section-title { margin-bottom: .75rem; }
+    .file-field .btn { background-color: #1976d2; }
+    .helper { margin-top: .25rem; color: #616161; font-size: .9rem; }
+    .divider { margin: 2rem 0 1.5rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card z-depth-1">
+      <div class="card-content">
+        <span class="card-title">Upload de Arquivos da Pesquisa de Clima</span>
+
+        <!-- FORM: redireciona para /classifica_comentarios -->
+        <form action="/classifica_comentarios" method="POST" enctype="multipart/form-data" id="upload-form">
+          <!-- ===================== Configuração ===================== -->
+          <h6 class="section-title blue-text text-darken-2">Configuração</h6>
+          <div class="row">
+            <!-- Nome da pesquisa -->
+            <div class="input-field col s12 m6">
+              <input id="nome-pesquisa" name="nome_pesquisa" type="text" />
+              <label for="nome-pesquisa">Nome da pesquisa</label>
+              <div class="helper">Ex.: Clima Organizacional 2025</div>
+            </div>
+
+            <!-- Data da pesquisa (Datepicker) -->
+            <div class="input-field col s12 m6">
+              <input id="data-pesquisa" name="data_pesquisa" type="text" class="datepicker"/>
+              <label for="data-pesquisa">Data da pesquisa</label>
+              <div class="helper">Selecione no calendário</div>
+            </div>
+          </div>
+
+          <div class="row">
+            <!-- Organograma top limit -->
+            <div class="input-field col s6 m3">
+              <input id="org-top" name="org_top" type="number" step="1" min="0" />
+              <label for="org-top">Organograma top limit</label>
+            </div>
+
+            <!-- Organograma bottom limit -->
+            <div class="input-field col s6 m3">
+              <input id="org-bottom" name="org_bottom" type="number" step="1" min="0" />
+              <label for="org-bottom">Organograma bottom limit</label>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- ===================== Uploads ===================== -->
+          <!-- Campanha -->
+          <div class="file-section">
+            <div class="file-field input-field">
+              <div class="btn btn-block">
+                <span>📁 Campanha (CSV)</span>
+                <input type="file" id="campanha" name="campanha" accept=".csv" required>
+              </div>
+              <div class="file-path-wrapper">
+                <input class="file-path validate" type="text" placeholder="Nenhum arquivo selecionado">
+              </div>
+            </div>
+            <p class="helper">Arquivo exportado do survey contendo os comentários.</p>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Pessoas -->
+          <div class="file-section">
+            <div class="file-field input-field">
+              <div class="btn btn-block">
+                <span>👥 Pessoas (CSV)</span>
+                <input type="file" id="pessoas" name="pessoas" accept=".csv" required>
+              </div>
+              <div class="file-path-wrapper">
+                <input class="file-path validate" type="text" placeholder="Nenhum arquivo selecionado">
+              </div>
+            </div>
+            <p class="helper">Arquivo com os dados das pessoas (nome, e-mail, cargo, etc.).</p>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Submit -->
+          <div class="center-align" style="margin-top: .5rem;">
+            <button id="submit-btn" class="btn waves-effect waves-light btn-large" type="submit" disabled>
+              Classificar Comentários
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Inicializa o Datepicker (pt-BR)
+    document.addEventListener('DOMContentLoaded', function () {
+      const elems = document.querySelectorAll('.datepicker');
+      M.Datepicker.init(elems, {
+        format: 'dd/mm/yyyy',
+        i18n: {
+          cancel: 'Cancelar', clear: 'Limpar', done: 'OK',
+          months: ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'],
+          monthsShort: ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'],
+          weekdays: ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'],
+          weekdaysShort: ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'],
+          weekdaysAbbrev: ['D','S','T','Q','Q','S','S']
+        }
+      });
+    });
+
+    // Habilita o submit apenas se ambos os arquivos forem selecionados
+    const campanhaInput = document.getElementById('campanha');
+    const pessoasInput  = document.getElementById('pessoas');
+    const submitBtn     = document.getElementById('submit-btn');
+
+    function checkFiles() {
+      submitBtn.disabled = !(campanhaInput.files.length && pessoasInput.files.length);
+    }
+    campanhaInput.addEventListener('change', checkFiles);
+    pessoasInput.addEventListener('change', checkFiles);
+  </script>
+</body>
+</html>
