@@ -3,7 +3,7 @@ import io
 import re
 import csv
 
-def classifica_comentarios(df, df_info, survey_id):
+def data_preprocessing(df, df_person, survey_id):
 
     # Informar o id das perguntas abertas e perguntas que contém comentário
     perguntas_abertas = [1,18]
@@ -77,5 +77,5 @@ def classifica_comentarios(df, df_info, survey_id):
 
     # Limpa emails internos mindsight
     df_resultado = df_resultado[~df_resultado["email"].str.contains("@mindsight.com.br", na=False)]
-    df_final = pd.merge(df_resultado, df_info[['email','área', 'gestor']], on='email', how='left')
+    df_final = pd.merge(df_resultado, df_person[['email','área', 'gestor']], on='email', how='left')
     return(df_final)

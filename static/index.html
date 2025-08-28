@@ -68,7 +68,7 @@
           <div class="file-section">
             <div class="file-field input-field">
               <div class="btn btn-block">
-                <span>📁 Campanha (CSV)</span>
+                <span>Campanha (CSV)</span>
                 <input type="file" id="campanha" name="campanha" accept=".csv" required>
               </div>
               <div class="file-path-wrapper">
@@ -84,7 +84,7 @@
           <div class="file-section">
             <div class="file-field input-field">
               <div class="btn btn-block">
-                <span>👥 Pessoas (CSV)</span>
+                <span>Pessoas - FRONT Full (CSV)</span>
                 <input type="file" id="pessoas" name="pessoas" accept=".csv" required>
               </div>
               <div class="file-path-wrapper">
@@ -96,6 +96,35 @@
 
           <div class="divider"></div>
 
+          <!-- Instancia de Áreas -->
+          <div class="file-section">
+            <div class="file-field input-field">
+              <div class="btn btn-block">
+                <span>Instância de Áreas (CSV)</span>
+                <input type="file" id="instancia_areas" name="instancia_areas" accept=".csv" required>
+              </div>
+              <div class="file-path-wrapper">
+                <input class="file-path validate" type="text" placeholder="Nenhum arquivo selecionado">
+              </div>
+            </div>
+            <p class="helper">Arquivo com o id e nome das áreas: Exportar Instancia de áreas no DJANGO do Full</p>
+          </div>
+          <!-- Hierarqui de Áreas -->
+          <div class="file-section">
+            <div class="file-field input-field">
+              <div class="btn btn-block">
+                <span>Hierarquia de Áreas (CSV)</span>
+                <input type="file" id="hierarquia_areas" name="hierarquia_areas" accept=".csv" required>
+              </div>
+              <div class="file-path-wrapper">
+                <input class="file-path validate" type="text" placeholder="Nenhum arquivo selecionado">
+              </div>
+            </div>
+            <p class="helper">Arquivo com os parents de cada área: Exportar em Hierarquia de áreas no DJANGO do Full</p>
+          </div>
+
+          <div class="divider"></div>
+         
           <!-- Submit -->
           <div class="center-align" style="margin-top: .5rem;">
             <button id="submit-btn" class="btn waves-effect waves-light btn-large" type="submit" disabled>
