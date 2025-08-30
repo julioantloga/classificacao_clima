@@ -1,4 +1,3 @@
-# service/survey_repository.py
 from sqlalchemy import text
 from db_config import engine
 
