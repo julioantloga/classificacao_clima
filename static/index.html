@@ -4,155 +4,344 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Classificação de Comentários</title>
+  <title>Clima Organizacional</title>
 
-  <!-- Materialize CSS -->
+  <!-- Materialize CSS / Icons -->
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" rel="stylesheet">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js" defer></script>
 
   <style>
-    body { background: #f5f5f5; padding: 2rem; }
-    .container { max-width: 900px; }
+    :root {
+      --brand-blue: #1976d2;
+    }
+    body { background: #f5f5f5; }
+    .brand { padding-left: 12px; }
+    .container-wrap { padding: 24px; }
     .card { border-radius: 8px; }
     .btn-block { width: 100%; }
-    .section-title { margin-bottom: .75rem; }
-    .file-field .btn { background-color: #1976d2; }
+    .file-field .btn { background-color: var(--brand-blue); }
     .helper { margin-top: .25rem; color: #616161; font-size: .9rem; }
     .divider { margin: 2rem 0 1.5rem; }
+    .section-title { margin-bottom: .75rem; }
+    .section-header { margin-bottom: 12px; }
+    .table-wrap { overflow-x: auto; }
+    .sidenav .active-link { background: rgba(25,118,210,0.12); }
+    .hidden { display: none !important; }
+    .valid-msg { color: #2e7d32; font-size: 0.9rem; }
+    .invalid-msg { color: #c62828; font-size: 0.9rem; }
+
+    /* Modal progress styles */
+    .progress-steps { margin: 12px 0 6px; }
+    .step-item { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+    .step-item .material-icons { font-size: 20px; }
+    .step-pending { color: #9e9e9e; }
+    .step-running { color: #1565c0; }
+    .step-done { color: #2e7d32; }
+    .step-error { color: #c62828; }
+    .step-time { margin-left: auto; font-size: 0.85rem; color: #616161; }
+    .progress { height: 8px; border-radius: 4px; overflow: hidden; }
+    .progress .determinate { background: var(--brand-blue); }
+    .modal-footer > .btn-flat + .btn-flat { margin-left: 8px; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="card z-depth-1">
-      <div class="card-content">
-        <span class="card-title">Upload de Arquivos da Pesquisa de Clima</span>
 
-        <!-- FORM: redireciona para /classifica_comentarios -->
-        <form action="/classifica_comentarios" method="POST" enctype="multipart/form-data" id="upload-form">
-          <!-- ===================== Configuração ===================== -->
-          <h6 class="section-title blue-text text-darken-2">Configuração</h6>
-          <div class="row">
-            <!-- Nome da pesquisa -->
-            <div class="input-field col s12 m6">
-              <input id="nome-pesquisa" name="nome_pesquisa" type="text" />
-              <label for="nome-pesquisa">Nome da pesquisa</label>
-              <div class="helper">Ex.: Clima Organizacional 2025</div>
-            </div>
+  <!-- Top Navbar -->
+  <nav class="blue">
+    <div class="nav-wrapper">
+      <a href="#!" class="brand-logo brand">Clima Organizacional</a>
+      <a href="#" data-target="side-menu" class="sidenav-trigger"><i class="material-icons">menu</i></a>
+    </div>
+  </nav>
 
-            <!-- Data da pesquisa (Datepicker) -->
-            <div class="input-field col s12 m6">
-              <input id="data-pesquisa" name="data_pesquisa" type="text" class="datepicker"/>
-              <label for="data-pesquisa">Data da pesquisa</label>
-              <div class="helper">Selecione no calendário</div>
-            </div>
-          </div>
-
-          <div class="row">
-            <!-- Organograma top limit -->
-            <div class="input-field col s6 m3">
-              <input id="org-top" name="org_top" type="number" step="1" min="0" />
-              <label for="org-top">Organograma top limit</label>
-            </div>
-
-            <!-- Organograma bottom limit -->
-            <div class="input-field col s6 m3">
-              <input id="org-bottom" name="org_bottom" type="number" step="1" min="0" />
-              <label for="org-bottom">Organograma bottom limit</label>
-            </div>
-          </div>
-
-          <div class="divider"></div>
-
-          <!-- ===================== Uploads ===================== -->
-          <!-- Campanha -->
-          <div class="file-section">
-            <div class="file-field input-field">
-              <div class="btn btn-block">
-                <span>Campanha (CSV)</span>
-                <input type="file" id="campanha" name="campanha" accept=".csv" required>
-              </div>
-              <div class="file-path-wrapper">
-                <input class="file-path validate" type="text" placeholder="Nenhum arquivo selecionado">
-              </div>
-            </div>
-            <p class="helper">Arquivo exportado do survey contendo os comentários.</p>
-          </div>
-
-          <div class="divider"></div>
-
-          <!-- Pessoas -->
-          <div class="file-section">
-            <div class="file-field input-field">
-              <div class="btn btn-block">
-                <span>Pessoas - FRONT Full (CSV)</span>
-                <input type="file" id="pessoas" name="pessoas" accept=".csv" required>
-              </div>
-              <div class="file-path-wrapper">
-                <input class="file-path validate" type="text" placeholder="Nenhum arquivo selecionado">
-              </div>
-            </div>
-            <p class="helper">Arquivo com os dados das pessoas (nome, e-mail, cargo, etc.).</p>
-          </div>
-
-          <div class="divider"></div>
-
-          <!-- Instancia de Áreas -->
-          <div class="file-section">
-            <div class="file-field input-field">
-              <div class="btn btn-block">
-                <span>Instância das Áreas (CSV)</span>
-                <input type="file" id="instancia_areas" name="instancia_areas" accept=".csv" required>
-              </div>
-              <div class="file-path-wrapper">
-                <input class="file-path validate" type="text" placeholder="Nenhum arquivo selecionado">
-              </div>
-            </div>
-            <p class="helper">Arquivo com o id e nome das áreas: Exportar Instancia de áreas no DJANGO do Full</p>
-          </div>
-          <!-- Hierarqui de Áreas -->
-          <div class="file-section">
-            <div class="file-field input-field">
-              <div class="btn btn-block">
-                <span>Hierarquia das Áreas (CSV)</span>
-                <input type="file" id="hierarquia_areas" name="hierarquia_areas" accept=".csv" required>
-              </div>
-              <div class="file-path-wrapper">
-                <input class="file-path validate" type="text" placeholder="Nenhum arquivo selecionado">
-              </div>
-            </div>
-            <p class="helper">Arquivo com os parents de cada área: Exportar em Hierarquia de áreas no DJANGO do Full</p>
-          </div>
-          <!-- Áreas -->
-          <div class="file-section">
-            <div class="file-field input-field">
-              <div class="btn btn-block">
-                <span>Pessoas das Áreas (CSV)</span>
-                <input type="file" id="person_areas" name="person_areas" accept=".csv" required>
-              </div>
-              <div class="file-path-wrapper">
-                <input class="file-path validate" type="text" placeholder="Nenhum arquivo selecionado">
-              </div>
-            </div>
-            <p class="helper">Arquivo que relaciona as pessoas com as áreas: Exportar em Áreas no DJANGO do Full</p>
-          </div>
-          <div class="divider"></div>
-         
-          <!-- Submit -->
-          <div class="center-align" style="margin-top: .5rem;">
-            <button id="submit-btn" class="btn waves-effect waves-light btn-large" type="submit" disabled>
-              Classificar Comentários
-            </button>
-          </div>
-        </form>
+  <!-- Side Menu -->
+  <ul id="side-menu" class="sidenav sidenav-fixed">
+    <li>
+      <div class="user-view">
+        <div class="background blue lighten-1"></div>
+        <a href="#!"><span class="white-text name">Menu</span></a>
+        <a href="#!"><span class="white-text email">Selecione uma ação</span></a>
       </div>
+    </li>
+    <li><a href="#section-dashboard" class="menu-link"><i class="material-icons">dashboard</i>Dashboard</a></li>
+    <li><a href="#section-new-survey" class="menu-link active-link"><i class="material-icons">note_add</i>Cadastrar nova pesquisa</a></li>
+    <li><a href="#section-area-review" class="menu-link"><i class="material-icons">description</i>Gerar resumos</a></li>
+    <li><a href="#section-plan" class="menu-link"><i class="material-icons">description</i>Gerar planos de ação</a></li>
+  </ul>
+
+  <main class="container-wrap" style="margin-left: 300px; max-width: 1100px;">
+
+    <!-- Seção: Dashboard -->
+    <section id="section-dashboard" class="hidden">
+      <div class="card z-depth-1">
+        <div class="card-content">
+          <span class="card-title section-header">Dashboard</span>
+
+          <!-- Menu horizontal -->
+          <ul class="tabs tabs-fixed-width">
+            <li class="tab col s4"><a class="active dashboard-tab" href="#dashboard-overview">Visão Geral</a></li>
+            <li class="tab col s4"><a class="dashboard-tab" href="#dashboard-area">Visão por Área</a></li>
+            <li class="tab col s4"><a class="dashboard-tab" href="#dashboard-comments">Comentários</a></li>
+          </ul>
+
+          <!-- Conteúdo das abas -->
+          <div id="dashboard-overview" class="dashboard-content" style="margin-top: 24px;">
+            <div id="dashboard-container">Carregando...</div>
+          </div>
+          <div id="dashboard-area" class="dashboard-content hidden" style="margin-top: 24px;">
+            <p>Conteúdo da Visão por Área...</p>
+          </div>
+          <div id="dashboard-comments" class="dashboard-content hidden" style="margin-top: 24px;">
+            <p>Conteúdo dos Comentários...</p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- Seção: Cadastrar nova pesquisa -->
+    <section id="section-new-survey">
+      <div class="card z-depth-1">
+        <div class="card-content">
+          <span class="card-title section-header">Cadastrar nova pesquisa</span>
+
+          <!-- FORM: envia para /classifica_comentarios_async com SSE e checklist -->
+          <form id="async-upload-form" enctype="multipart/form-data">
+            <!-- ===================== Configuração ===================== -->
+            <h6 class="section-title blue-text text-darken-2">Configuração</h6>
+            <div class="row">
+              <div class="input-field col s12 m6">
+                <input id="nome-pesquisa" name="nome_pesquisa" type="text"/>
+                <label for="nome-pesquisa">Nome da pesquisa</label>
+                <div class="helper">Ex.: Clima Organizacional 2025</div>
+              </div>
+
+              <div class="input-field col s12 m6">
+                <input id="data-pesquisa" name="data_pesquisa" type="text" class="datepicker"/>
+                <label for="data-pesquisa">Data da pesquisa</label>
+                <div class="helper">Selecione no calendário</div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="input-field col s6 m3">
+                <input id="org-top" name="org_top" type="number" step="1" min="0"/>
+                <label for="org-top">Organograma top limit</label>
+              </div>
+              <div class="input-field col s6 m3">
+                <input id="org-bottom" name="org_bottom" type="number" step="1" min="0"/>
+                <label for="org-bottom">Organograma bottom limit</label>
+              </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- ===================== Uploads ===================== -->
+            <div class="file-section">
+              <div class="file-field input-field">
+                <div class="btn btn-block">
+                  <span>Campanha (CSV)</span>
+                  <input type="file" id="campanha" name="campanha" accept=".csv" required>
+                </div>
+                <div class="file-path-wrapper">
+                  <input class="file-path validate" type="text" placeholder="Nenhum arquivo selecionado">
+                </div>
+              </div>
+              <p class="helper">Arquivo exportado do survey contendo os comentários.</p>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="file-section">
+              <div class="file-field input-field">
+                <div class="btn btn-block">
+                  <span>Pessoas - FRONT Full (CSV)</span>
+                  <input type="file" id="pessoas" name="pessoas" accept=".csv" required>
+                </div>
+                <div class="file-path-wrapper">
+                  <input class="file-path validate" type="text" placeholder="Nenhum arquivo selecionado">
+                </div>
+              </div>
+              <p class="helper">Arquivo com os dados das pessoas (nome, e-mail, cargo, etc.).</p>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="file-section">
+              <div class="file-field input-field">
+                <div class="btn btn-block">
+                  <span>Instância das Áreas (CSV)</span>
+                  <input type="file" id="instancia_areas" name="instancia_areas" accept=".csv" required>
+                </div>
+                <div class="file-path-wrapper">
+                  <input class="file-path validate" type="text" placeholder="Nenhum arquivo selecionado">
+                </div>
+              </div>
+              <p class="helper">Exportar "Instância de áreas" no Django do Full.</p>
+            </div>
+
+            <div class="file-section">
+              <div class="file-field input-field">
+                <div class="btn btn-block">
+                  <span>Hierarquia das Áreas (CSV)</span>
+                  <input type="file" id="hierarquia_areas" name="hierarquia_areas" accept=".csv" required>
+                </div>
+                <div class="file-path-wrapper">
+                  <input class="file-path validate" type="text" placeholder="Nenhum arquivo selecionado">
+                </div>
+              </div>
+              <p class="helper">Exportar "Hierarquia de áreas" no Django do Full.</p>
+            </div>
+
+            <div class="file-section">
+              <div class="file-field input-field">
+                <div class="btn btn-block">
+                  <span>Pessoas das Áreas (CSV)</span>
+                  <input type="file" id="person_areas" name="person_areas" accept=".csv" required>
+                </div>
+                <div class="file-path-wrapper">
+                  <input class="file-path validate" type="text" placeholder="Nenhum arquivo selecionado">
+                </div>
+              </div>
+              <p class="helper">Relaciona pessoas ↔ áreas: exporte em "Áreas" no Django do Full.</p>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="center-align" style="margin-top: .5rem;">
+              <button id="submit-async" class="btn waves-effect waves-light btn-large" type="submit" disabled>
+                Classificar Comentários
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- Seção: Gerar resumos -->
+    <section id="section-area-review" class="hidden">
+      <div class="card z-depth-1">
+        <div class="card-content">
+          <span class="card-title section-header">Gerar resumos</span>
+
+          <form id="area-review-form" method="POST" action="/generate_area_reviews">
+            <div class="row">
+              <div class="input-field col s12 m6">
+                <input id="survey-id-input" name="survey_id" type="number" min="1" required>
+                <label for="survey-id-input">ID da pesquisa (survey_id)</label>
+                <div id="survey-id-helper" class="helper">Informe um survey_id existente.</div>
+              </div>
+            </div>
+
+            <div class="row" style="margin-top: .5rem;">
+              <div class="col s12 m6">
+                <label>
+                  <input type="checkbox" id="overwrite" name="overwrite" class="filled-in"/>
+                  <span>Substituir resumos existentes</span>
+                </label>
+              </div>
+              <div class="col s12 m6 right-align">
+                <button id="area-review-submit" class="btn waves-effect waves-light" type="submit" disabled>
+                  Gerar resumos
+                </button>
+              </div>
+            </div>
+          </form>
+
+          <div id="area-review-result" class="helper"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Seção: Gerar planos de ação -->
+    <section id="section-plan" class="hidden">
+      <div class="card z-depth-1">
+        <div class="card-content">
+          <span class="card-title section-header">Gerar planos de ação</span>
+
+          <form id="plan-form" method="POST" action="/generate_plan_events">
+            <div class="row">
+              <div class="input-field col s12 m6">
+                <input id="survey-id-input" name="survey_id" type="number" min="1" required>
+                <label for="survey-id-input">ID da pesquisa (survey_id)</label>
+                <div id="survey-id-helper" class="helper">Informe um survey_id existente.</div>
+              </div>
+            </div>
+
+            <div class="row" style="margin-top: .5rem;">
+              <div class="col s12 m6">
+                <label>
+                  <input type="checkbox" id="overwrite" name="overwrite" class="filled-in"/>
+                  <span>Substituir planos existentes</span>
+                </label>
+              </div>
+              <div class="col s12 m6 right-align">
+                <button id="plan-submit" class="btn waves-effect waves-light" type="submit" disabled>
+                  Gerar planos
+                </button>
+              </div>
+            </div>
+          </form>
+
+          <div id="area-review-result" class="helper"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal: Loading + Checklist (apenas para Cadastrar nova pesquisa) -->
+  <div id="modal-loading" class="modal">
+    <div class="modal-content">
+      <h5>Processando sua pesquisa…</h5>
+      <p class="grey-text">Acompanhe o progresso das etapas.</p>
+
+      <div class="progress">
+        <div id="progress-bar" class="determinate" style="width: 0%;"></div>
+      </div>
+
+      <div id="steps-list" class="progress-steps"></div>
+
+      <div id="final-message" class="helper" style="margin-top: 8px;"></div>
+    </div>
+    <div class="modal-footer">
+      <a id="btn-open-result" href="#" class="btn-flat blue-text text-darken-2 hidden">
+        Abrir resultados
+      </a>
+      <a id="btn-close-modal" href="#!" class="modal-close btn-flat">Fechar</a>
     </div>
   </div>
 
+  <!-- Materialize JS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js" defer></script>
+
   <script>
-    // Inicializa o Datepicker (pt-BR)
     document.addEventListener('DOMContentLoaded', function () {
-      const elems = document.querySelectorAll('.datepicker');
-      M.Datepicker.init(elems, {
+
+      function loadDashboardContent(page) {
+        const container = document.getElementById('dashboard-container');
+        if (!container) return;
+
+        container.innerHTML = 'Carregando...';
+
+        fetch(`/dashboard/${page}`)
+          .then(response => {
+            if (!response.ok) throw new Error('Erro ao carregar conteúdo.');
+            return response.text();
+          })
+          .then(html => {
+            container.innerHTML = html;
+          })
+          .catch(err => {
+            container.innerHTML = `<span class="red-text">${err.message}</span>`;
+          });
+      }
+
+      // ===== Materialize inits
+      const sidenavs = document.querySelectorAll('.sidenav');
+      M.Sidenav.init(sidenavs, { edge: 'left' });
+
+      const datepickers = document.querySelectorAll('.datepicker');
+      M.Datepicker.init(datepickers, {
         format: 'dd/mm/yyyy',
         i18n: {
           cancel: 'Cancelar', clear: 'Limpar', done: 'OK',
@@ -163,18 +352,479 @@
           weekdaysAbbrev: ['D','S','T','Q','Q','S','S']
         }
       });
-    });
 
-    // Habilita o submit apenas se ambos os arquivos forem selecionados
-    const campanhaInput = document.getElementById('campanha');
-    const pessoasInput  = document.getElementById('pessoas');
-    const submitBtn     = document.getElementById('submit-btn');
+      const modalEl = document.getElementById('modal-loading');
+      const modal = M.Modal.init(modalEl, { dismissible: false });
 
-    function checkFiles() {
-      submitBtn.disabled = !(campanhaInput.files.length && pessoasInput.files.length);
-    }
-    campanhaInput.addEventListener('change', checkFiles);
-    pessoasInput.addEventListener('change', checkFiles);
+      // ===== Navegação lateral
+      const links = document.querySelectorAll('.menu-link');
+      const sections = {
+        dashboard: document.getElementById('section-dashboard'),
+        newSurvey: document.getElementById('section-new-survey'),
+        areaReview: document.getElementById('section-area-review'),
+        Plan: document.getElementById('section-plan'),
+      };
+      links.forEach(link => {
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          links.forEach(l => l.classList.remove('active-link'));
+          link.classList.add('active-link');
+
+          sections.newSurvey.classList.add('hidden');
+          sections.areaReview.classList.add('hidden');
+          sections.Plan.classList.add('hidden');
+          sections.dashboard.classList.add('hidden');
+
+          const target = link.getAttribute('href');
+          if (target === '#section-new-survey') sections.newSurvey.classList.remove('hidden');
+          if (target === '#section-area-review') sections.areaReview.classList.remove('hidden');
+          if (target === '#section-plan') sections.Plan.classList.remove('hidden');
+          if (target === '#section-dashboard') {
+            sections.dashboard.classList.remove('hidden');
+            loadDashboardContent('overview');  // Carrega visão geral por padrão
+          }
+
+          const inst = M.Sidenav.getInstance(document.querySelector('.sidenav'));
+          if (inst && window.innerWidth < 992) inst.close();
+        });
+      });
+
+      // Tabs internas do Dashboard
+      const dashboardTabs = document.querySelectorAll('.dashboard-tab');
+      const dashboardContents = document.querySelectorAll('.dashboard-content');
+
+      dashboardTabs.forEach(tab => {
+        tab.addEventListener('click', (e) => {
+          e.preventDefault();
+          const targetId = tab.getAttribute('href').substring(1); // dashboard-overview, etc
+          dashboardContents.forEach(c => c.classList.add('hidden'));
+          document.getElementById(targetId).classList.remove('hidden');
+
+          dashboardTabs.forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+
+          // Carrega o conteúdo da aba clicada
+          const page = targetId.replace('dashboard-', '');
+          loadDashboardContent(page);
+        });
+      });
+
+      // ====== Form "Cadastrar nova pesquisa" (ASSÍNCRONO + SSE)
+      const campanhaInput = document.getElementById('campanha');
+      const pessoasInput  = document.getElementById('pessoas');
+      const submitAsync   = document.getElementById('submit-async');
+
+      function checkFiles() {
+        submitAsync.disabled = !(campanhaInput.files.length && pessoasInput.files.length);
+      }
+      campanhaInput.addEventListener('change', checkFiles);
+      pessoasInput.addEventListener('change', checkFiles);
+
+      const STEPS = [
+        "Criar pesquisa (survey)",
+        "Ler arquivos (CSV)",
+        "Normalizar respostas (df_final)",
+        "Inserir áreas/hierarquia",
+        "Inserir funcionários",
+        "Inserir questões e comentários",
+        "Classificar percepções",
+        "Calcular scores de áreas"
+      ];
+
+      // Render inicial da lista de steps no modal
+      function renderSteps() {
+        const list = document.getElementById('steps-list');
+        list.innerHTML = '';
+        STEPS.forEach((label, idx) => {
+          const li = document.createElement('div');
+          li.className = 'step-item step-pending';
+          li.id = `step-${idx+1}`;
+          li.innerHTML = `
+            <i class="material-icons">radio_button_unchecked</i>
+            <span>${idx+1}. ${label}</span>
+            <span class="step-time" id="step-time-${idx+1}"></span>
+          `;
+          list.appendChild(li);
+        });
+      }
+
+      function setStepState(stepIndex, state, elapsedMs) {
+        const item = document.getElementById(`step-${stepIndex}`);
+        const icon = item.querySelector('.material-icons');
+        item.classList.remove('step-pending','step-running','step-done','step-error');
+
+        if (state === 'running') {
+          item.classList.add('step-running');
+          icon.textContent = 'autorenew';
+        } else if (state === 'done') {
+          item.classList.add('step-done');
+          icon.textContent = 'check_circle';
+          if (typeof elapsedMs === 'number') {
+            const sec = (elapsedMs / 1000).toFixed(1);
+            document.getElementById(`step-time-${stepIndex}`).textContent = `${sec}s`;
+          }
+        } else if (state === 'error') {
+          item.classList.add('step-error');
+          icon.textContent = 'error';
+        } else {
+          item.classList.add('step-pending');
+          icon.textContent = 'radio_button_unchecked';
+        }
+      }
+
+      function setProgress(pct) {
+        const bar = document.getElementById('progress-bar');
+        bar.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+      }
+
+      function openModal() {
+        renderSteps();
+        document.getElementById('final-message').textContent = '';
+        document.getElementById('btn-open-result').classList.add('hidden');
+        setProgress(0);
+        modal.open();
+      }
+
+      // Submissão assíncrona
+      const form = document.getElementById('async-upload-form');
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (submitAsync.disabled) return;
+
+        openModal();
+
+        try {
+          const formData = new FormData(form);
+          const resp = await fetch('/classifica_comentarios_async', { method: 'POST', body: formData });
+          const j = await resp.json();
+          if (!resp.ok || !j.job_id) {
+            document.getElementById('final-message').textContent = j.error || 'Falha ao iniciar o processamento.';
+            return;
+          }
+          // Abre SSE
+          const jobId = j.job_id;
+          const es = new EventSource(`/events/${jobId}`);
+          let stepIdx = 0;
+
+          es.onmessage = (evt) => {
+            // fallback se servidor enviar 'message' sem event name
+            // (não usamos aqui)
+          };
+
+          es.addEventListener('info', (evt) => {
+            // mensagem informativa
+            // pode ser usada no futuro
+          });
+
+          es.addEventListener('tick', (evt) => {
+            // progresso genérico (opcional)
+          });
+
+          es.addEventListener('step_start', (evt) => {
+            try {
+              const data = JSON.parse(evt.data);
+              stepIdx = data.step_index; // 1-based
+              setStepState(stepIdx, 'running');
+            } catch {}
+          });
+
+          es.addEventListener('step_end', (evt) => {
+            try {
+              const data = JSON.parse(evt.data);
+              stepIdx = data.step_index;
+              setStepState(stepIdx, 'done', data.elapsed_ms);
+              setProgress((stepIdx / STEPS.length) * 100);
+            } catch {}
+          });
+
+          es.addEventListener('survey', (evt) => {
+            // server envia {survey_id}
+            try {
+              const data = JSON.parse(evt.data);
+              const btn = document.getElementById('btn-open-result');
+              btn.href = `/resultados?survey_id=${encodeURIComponent(data.survey_id)}`;
+            } catch {}
+          });
+
+          es.addEventListener('stats', (evt) => {
+            // dados de estatística por etapa (opcional)
+          });
+
+          es.addEventListener('error', (evt) => {
+            setStepState(stepIdx || 1, 'error');
+            document.getElementById('final-message').textContent = `Erro: ${evt.data || 'falha ao processar'}`;
+          });
+
+          es.addEventListener('done', (evt) => {
+            setProgress(100);
+            document.getElementById('final-message').textContent = 'Pipeline concluído com sucesso.';
+            document.getElementById('btn-open-result').classList.remove('hidden');
+            es.close();
+          });
+
+        } catch (err) {
+          document.getElementById('final-message').textContent = `Erro: ${err}`;
+        }
+      });
+
+      // ====== Form "Criar resumo de Áreas" (validação + submit simples)
+      const surveyIdInput = document.getElementById('survey-id-input');
+      const helper = document.getElementById('survey-id-helper');
+      const reviewSubmit = document.getElementById('area-review-submit');
+      const areaReviewForm = document.getElementById('area-review-form');
+      const resultBox = document.getElementById('area-review-result');
+
+      let lastCheckToken = 0;
+      async function validateSurveyId() {
+        const val = surveyIdInput.value.trim();
+        if (!val || parseInt(val) < 1) {
+          helper.textContent = 'Informe um survey_id válido.';
+          helper.className = 'invalid-msg';
+          reviewSubmit.disabled = true;
+          return;
+        }
+        const token = ++lastCheckToken;
+        helper.textContent = 'Verificando...';
+        helper.className = 'helper';
+        reviewSubmit.disabled = true;
+
+        try {
+          const res = await fetch(`/api/survey_exists?survey_id=${encodeURIComponent(val)}`);
+          const j = await res.json();
+          if (token !== lastCheckToken) return;
+          if (j && j.exists === true) {
+            helper.textContent = 'Pesquisa encontrada. Pronto para gerar os resumos.';
+            helper.className = 'valid-msg';
+            reviewSubmit.disabled = false;
+          } else {
+            helper.textContent = 'Pesquisa não encontrada. Verifique o ID.';
+            helper.className = 'invalid-msg';
+            reviewSubmit.disabled = true;
+          }
+        } catch (err) {
+          helper.textContent = 'Erro ao validar a pesquisa.';
+          helper.className = 'invalid-msg';
+          reviewSubmit.disabled = true;
+        }
+      }
+
+      surveyIdInput.addEventListener('input', validateSurveyId);
+      surveyIdInput.addEventListener('blur', validateSurveyId);
+
+      areaReviewForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (reviewSubmit.disabled) return;
+
+        reviewSubmit.classList.add('disabled');
+        reviewSubmit.innerText = 'Gerando...';
+        resultBox.innerHTML = '<ul id="area-review-list" class="collection" style="margin-top:8px;"></ul>';
+        
+        const list = document.getElementById('area-review-list');
+
+        try {
+          const formData = new FormData(areaReviewForm);
+          const payload = {
+            survey_id: Number(formData.get('survey_id')),
+            overwrite: formData.get('overwrite') ? true : false
+          };
+
+          // dispara job
+          const res = await fetch('/generate_area_reviews_async', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const j = await res.json();
+          if (!res.ok || !j.job_id) {
+            list.insertAdjacentHTML('beforeend', `<li class="collection-item red-text">Falha ao iniciar: ${j.error || 'erro'}</li>`);
+            return;
+          }
+
+          // abre SSE para acompanhar
+          const es = new EventSource(`/area_review_events/${j.job_id}`);
+
+          es.addEventListener('area_review', (evt) => {
+            try {
+              const data = JSON.parse(evt.data);
+              const icon = data.status === 'ok' ? 'check_circle' :
+                          data.status === 'indisponivel' ? 'remove_circle_outline' :
+                          'error';
+              const color = data.status === 'ok' ? 'green-text text-darken-2' :
+                            data.status === 'indisponivel' ? 'grey-text text-darken-1' :
+                            'red-text text-darken-2';
+              const label = data.status === 'ok' ? 'OK' :
+                            data.status === 'indisponivel' ? 'Indisponível' : 'Erro';
+
+              list.insertAdjacentHTML('beforeend', `
+                <li class="collection-item">
+                  <i class="material-icons ${color}" style="vertical-align:middle;margin-right:6px;">${icon}</i>
+                  <span>Resumo da Área <strong>${data.area_name}</strong> concluído: <strong>${label}</strong></span>
+                </li>
+              `);
+            } catch {}
+          });
+
+          es.addEventListener('general_review', (evt) => {
+            try {
+              const data = JSON.parse(evt.data);
+              const icon = data.status === 'ok' ? 'check_circle' :
+                          data.status === 'indisponivel' ? 'remove_circle_outline' :
+                          'error';
+              const color = data.status === 'ok' ? 'green-text text-darken-2' :
+                            data.status === 'indisponivel' ? 'grey-text text-darken-1' :
+                            'red-text text-darken-2';
+              const label = data.status === 'ok' ? 'OK' :
+                            data.status === 'indisponivel' ? 'Indisponível' : `Erro: ${data.message || ''}`;
+
+              list.insertAdjacentHTML('beforeend', `
+                <li class="collection-item">
+                  <i class="material-icons ${color}" style="vertical-align:middle;margin-right:6px;">${icon}</i>
+                  <span><strong>Resumo Geral</strong> concluído: <strong>${label}</strong></span>
+                </li>
+              `);
+            } catch {}
+          });
+
+          es.addEventListener('info', (evt) => {
+            if (!evt.data) return;
+            list.insertAdjacentHTML('beforeend', `<li class="collection-item grey-text">${evt.data}</li>`);
+          });
+
+          es.addEventListener('error', (evt) => {
+            list.insertAdjacentHTML('beforeend', `<li class="collection-item red-text">Erro: ${evt.data || 'falha no processo'}</li>`);
+          });
+
+          es.addEventListener('done', () => {
+            list.insertAdjacentHTML('beforeend', `<li class="collection-item green-text">Processo finalizado.</li>`);
+            es.close();
+            reviewSubmit.classList.remove('disabled');
+            reviewSubmit.innerText = 'Gerar resumos';
+          });
+
+        } catch (err) {
+          resultBox.innerHTML = `<span class="invalid-msg">Erro: ${err}</span>`;
+          reviewSubmit.classList.remove('disabled');
+          reviewSubmit.innerText = 'Gerar resumos';
+        }
+
+      });
+
+
+      // ====== Form "Gerar planos de ação" (validação + submit com SSE)
+      const planForm = document.getElementById('plan-form');
+      const planSurveyInput = planForm.querySelector('input[name="survey_id"]');
+      const planHelper = planForm.querySelector('#survey-id-helper'); // já existe o mesmo ID
+      const planSubmit = document.getElementById('plan-submit');
+      const planResultBox = document.getElementById('area-review-result');
+      let lastPlanCheckToken = 0;
+
+      async function validatePlanSurveyId() {
+        const val = planSurveyInput.value.trim();
+        if (!val || parseInt(val) < 1) {
+          planHelper.textContent = 'Informe um survey_id válido.';
+          planHelper.className = 'invalid-msg';
+          planSubmit.disabled = true;
+          return;
+        }
+        const token = ++lastPlanCheckToken;
+        planHelper.textContent = 'Verificando...';
+        planHelper.className = 'helper';
+        planSubmit.disabled = true;
+        try {
+          const res = await fetch(`/api/survey_exists?survey_id=${encodeURIComponent(val)}`);
+          const j = await res.json();
+          if (token !== lastPlanCheckToken) return;
+          if (j && j.exists === true) {
+            planHelper.textContent = 'Pesquisa encontrada. Pronto para gerar os planos.';
+            planHelper.className = 'valid-msg';
+            planSubmit.disabled = false;
+          } else {
+            planHelper.textContent = 'Pesquisa não encontrada. Verifique o ID.';
+            planHelper.className = 'invalid-msg';
+            planSubmit.disabled = true;
+          }
+        } catch (err) {
+          planHelper.textContent = 'Erro ao validar a pesquisa.';
+          planHelper.className = 'invalid-msg';
+          planSubmit.disabled = true;
+        }
+      }
+
+      planSurveyInput.addEventListener('input', validatePlanSurveyId);
+      planSurveyInput.addEventListener('blur', validatePlanSurveyId);
+
+      planForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (planSubmit.disabled) return;
+
+        planSubmit.classList.add('disabled');
+        planSubmit.innerText = 'Gerando...';
+
+        planResultBox.innerHTML = '<ul id="plan-result-list" class="collection" style="margin-top:8px;"></ul>';
+        const list = document.getElementById('plan-result-list');
+
+        try {
+          const formData = new FormData(planForm);
+          const payload = {
+            survey_id: Number(formData.get('survey_id')),
+            overwrite: formData.get('overwrite') ? true : false
+          };
+
+          const res = await fetch('/generate_plans_async', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          const j = await res.json();
+          if (!res.ok || !j.job_id) {
+            list.insertAdjacentHTML('beforeend', `<li class="collection-item red-text">Falha ao iniciar: ${j.error || 'erro'}</li>`);
+            return;
+          }
+
+          const es = new EventSource(`/plan_events/${j.job_id}`);
+          es.addEventListener('plan', (evt) => {
+            try {
+              const data = JSON.parse(evt.data);
+              const icon = data.status === 'ok' ? 'check_circle' :
+                          data.status === 'indisponivel' ? 'remove_circle_outline' : 'error';
+              const color = data.status === 'ok' ? 'green-text text-darken-2' :
+                            data.status === 'indisponivel' ? 'grey-text text-darken-1' : 'red-text text-darken-2';
+              const label = data.status === 'ok' ? 'OK' :
+                            data.status === 'indisponivel' ? 'Indisponível' : `Erro: ${data.message || ''}`;
+              list.insertAdjacentHTML('beforeend', `
+                <li class="collection-item">
+                  <i class="material-icons ${color}" style="vertical-align:middle;margin-right:6px;">${icon}</i>
+                  <span>Plano da Área <strong>${data.area_name}</strong>: <strong>${label}</strong></span>
+                </li>
+              `);
+            } catch {}
+          });
+
+          es.addEventListener('info', (evt) => {
+            if (!evt.data) return;
+            list.insertAdjacentHTML('beforeend', `<li class="collection-item grey-text">${evt.data}</li>`);
+          });
+
+          es.addEventListener('error', (evt) => {
+            list.insertAdjacentHTML('beforeend', `<li class="collection-item red-text">Erro: ${evt.data || 'falha no processo'}</li>`);
+          });
+
+          es.addEventListener('done', () => {
+            list.insertAdjacentHTML('beforeend', `<li class="collection-item green-text">Processo finalizado.</li>`);
+            es.close();
+            planSubmit.classList.remove('disabled');
+            planSubmit.innerText = 'Gerar planos';
+          });
+        } catch (err) {
+          planResultBox.innerHTML = `<span class="invalid-msg">Erro: ${err}</span>`;
+          planSubmit.classList.remove('disabled');
+          planSubmit.innerText = 'Gerar planos';
+        }
+      });
+
+
+    });  
   </script>
 </body>
 </html>
