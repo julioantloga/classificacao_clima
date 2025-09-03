@@ -89,17 +89,32 @@ def dashboard_page(page):
         data = get_area_review_plan(0, survey_id)
         return render_template("overview.html",survey=survey, data=data)
     
-    if page == "area":
-        #data = get_overview_data(survey_id)
-        return render_template("area.html", survey=survey)
+    if page == "area":        
+        areas = list_areas_with_non_null_score(survey_id)
+        return render_template("area.html", survey=survey, areas=areas)
     
     if page == "comments":
-
         rows = get_comments_with_perceptions(survey_id)
         areas = list_areas_with_non_null_score(survey_id)
         themes = list_perception_themes_for_survey(survey_id)
 
         return render_template("comments.html", survey=survey, rows=rows, areas=areas, themes=themes)
+
+@app.route('/dashboard/areas/search', methods=['GET'])
+def dashboard_areas_search():
+    survey_id = request.args.get("survey_id", type=int)
+    area_raw = request.args.get("area", default="")
+    selected_area = int(area_raw) if area_raw not in (None, "",) else 0  # vazio => 0
+
+    survey = get_survey(survey_id)
+    areas = list_areas_with_non_null_score(survey_id)
+    data = get_area_review_plan(area_id=selected_area, survey_id=survey_id)  # << chama sua função
+
+    return render_template("area.html",
+                           survey=survey,
+                           areas=areas,
+                           data=data,
+                           selected_area=selected_area)
 
 @app.route("/classifica_comentarios", methods=["POST"])
 def classifica_comentarios_route():
@@ -111,6 +126,7 @@ def classifica_comentarios_route():
     instancia_areas_file  = request.files["instancia_areas"]
     hierarquia_areas_file  = request.files["hierarquia_areas"]
     person_areas_file  = request.files["person_areas"]
+    df_notas_areas_file  = request.files["nota_areas"]
 
     try:
         # Ler CSVs
@@ -119,6 +135,7 @@ def classifica_comentarios_route():
         df_instancia_areas = read_csv_flex(instancia_areas_file)
         df_hierarquia_areas = read_csv_flex(hierarquia_areas_file)
         df_person_areas = read_csv_flex(person_areas_file)
+        df_notas_areas = read_csv_flex(df_notas_areas_file)
 
         # Campos da seção "Configuração"
         config = {
@@ -217,7 +234,7 @@ def classifica_comentarios_async():
     Inicia processamento em background e retorna job_id.
     Frontend deve abrir SSE em /events/<job_id>.
     """
-    required = ["campanha", "pessoas", "instancia_areas", "hierarquia_areas", "person_areas"]
+    required = ["campanha", "pessoas", "instancia_areas", "hierarquia_areas", "person_areas", "nota_areas"]
     for r in required:
         if r not in request.files:
             return jsonify({"error": f"Arquivo '{r}' é obrigatório."}), 400
@@ -281,8 +298,10 @@ def _worker_pipeline(job_id: str, paths: dict, config: dict):
             df_instancia_areas = read_csv_flex(paths["instancia_areas"])
             df_hierarquia_areas= read_csv_flex(paths["hierarquia_areas"])
             df_person_areas    = read_csv_flex(paths["person_areas"])
-            return df_campanha, df_person, df_instancia_areas, df_hierarquia_areas, df_person_areas
-        (df_campanha, df_person, df_instancia_areas, df_hierarquia_areas, df_person_areas) = \
+            df_notas_areas    = read_csv_flex(paths["nota_areas"])
+
+            return df_campanha, df_person, df_instancia_areas, df_hierarquia_areas, df_person_areas, df_notas_areas
+        (df_campanha, df_person, df_instancia_areas, df_hierarquia_areas, df_person_areas, df_notas_areas) = \
             timed_step(job_id, "Ler arquivos (CSV)", _read_csvs)
 
         # 3) Pré-processar campanha → df_final
@@ -330,7 +349,7 @@ def _worker_pipeline(job_id: str, paths: dict, config: dict):
 
         # 8) Calcular scores de áreas (Python)
         min_commenters = 1
-        areas_upd = timed_step(job_id, "Calcular o scores de áreas",compute_and_update_area_metrics_python,survey_id, min_lvl, max_lvl, min_commenters)
+        areas_upd = timed_step(job_id, "Calcular o scores de áreas",compute_and_update_area_metrics_python,survey_id, df_notas_areas, min_lvl, max_lvl, min_commenters)
         progress_bus.put(job_id, {"event": "stats", "scope": "area_metrics_py", "data": {"areas_atualizadas": areas_upd}})
 
         progress_bus.put(job_id, {"event": "info", "message": "Pipeline concluído com sucesso."})

@@ -5,6 +5,7 @@ from typing import Dict, List, Tuple
 import pandas as pd
 from sqlalchemy import text
 from typing import Union
+import re
 
 from db_config import engine
 
@@ -325,6 +326,31 @@ def generate_and_save_general_review(
 
     return content
 
+REVIEW_EXAMPLE = f"""
+<div id="show_review">
+<div><p>Os temas que demosntram maior insatisfação são Liderança e Gestão, Carga de Trabalho e Cultura e Valores Organizacionais, com relatos recorrentes 
+sobre distanciamento da liderança, pressão por resultados e desalinhamento cultural.</p>
+</div>
+
+<div class='review_item'>Oportunidades:</div>
+<div>
+<ul>
+<li>Percepções negativas sobre a liderança, incluindo falta de preparo, contradições, cobrança excessiva e ausência de apoio.</li>
+<li>Carga de trabalho considerada excessiva e metas desconectadas do contexto da área.</li>
+<li>Percepção de benefício alimentação abaixo do mercado.</li>
+</ul>
+</div>
+
+<div class='review_text'>Destaques:</p>
+<divp>
+<ul>
+<li>Orgulho pela cultura da empresa e identificação com o produto e as pessoas.</li>
+<li>Colaboração entre colegas e ambiente de equipe coeso.</li>
+</ul>
+</div>
+</div>
+"""
+
 def _build_general_review_prompt(json_geral: dict | str) -> str:
     if not isinstance(json_geral, str):
         json_geral = json.dumps(json_geral, ensure_ascii=False, indent=2)
@@ -345,14 +371,18 @@ O resumo deve:
 - Evite repetir dados. Concentre-se na interpretação dos resumos das áreas e suas implicações práticas.
 - Não de sugestões de solução, foque no problema.
 
-O output deve ter o seguinte formato:
-
-Resumo: <Análise enxuta dos indicadores>
-Oportunidades: <lista das oportunidades de melhoria>
-Destaques: <lista dos pontos de reconhecimentos>
+O output deve ser em html e ter o seguinte formato:
+<div id="show_review">
+<div><p><Análise enxuta dos dados></p></div>
+<div id="show_review">Oportunidades:</div> <div><ul><lista das oportunidades de melhoria></ul></div>
+<div id="show_review">Destaques:</div> <div><ul><lista dos pontos de reconhecimentos><ul></div>
+</div>
 
 Dados de entrada, estruturados em JSON, que representam a percepção de todos os colaboradores da empresa encontradas nos comentários da pesquisa de clima organizacional:
 {json_geral}
+
+Exemplo de Resposta:
+{REVIEW_EXAMPLE}
 """
 
 def generate_general_area_review(
@@ -394,6 +424,10 @@ def generate_general_area_review(
             temperature=temperature,
         )
         content = resp.choices[0].message.content.strip()
+        match = re.search(r'<div id="show_review">.*?</div>\s*$', content, flags=re.DOTALL)
+        if match:
+            content = match.group(0)
+
         update_area_review(survey_id, 0, content)
         return True
     except Exception as e:
@@ -493,6 +527,9 @@ def generate_and_save_general_plan(
         temperature=temperature,
     )
     content = resp.choices[0].message.content.strip()
+    match = re.search(r'<div id="show_review">.*?</div>\s*$', content, flags=re.DOTALL)
+    if match:
+            content = match.group(0)
 
     # ---- Persistência do plano na área 0
     with engine.begin() as conn:
@@ -503,6 +540,24 @@ def generate_and_save_general_plan(
 def _build_general_plan_prompt(json_geral: dict | str, areas_review, objetivos, restricoes) -> str:
     if not isinstance(json_geral, str):
         json_geral = json.dumps(json_geral, ensure_ascii=False, indent=2)
+
+    REVIEW_EXAMPLE = f"""
+<div id="show_review">
+<div class='review_item'>Resumo:</div>
+<div><p>As ações propostas estão direcionadas em resolvr problemas relacionados à insatisfação são Liderança e Gestão, Carga de Trabalho e Cultura e Valores Organizacionais, com relatos recorrentes 
+sobre distanciamento da liderança, pressão por resultados e desalinhamento cultural.</p>
+</div>
+
+<div class='review_item'>Plano de ação:</div>
+<div>
+<ul>
+<li>Aumentar o valor do vale alimentação para um valor competitivo no mercado.</li>
+<li>Rodar uma pesquisa para ter o diagnóstico de Burnout da empresa</li>
+</ul>
+</div>
+
+</div>
+    """    
 
     return f"""
 #Objetivo    
@@ -520,10 +575,12 @@ Sua tarefa é elaborar um plano de ação geral para apresentar ao CEO da empres
 - Evite repetir dados.
 
 #Output
-O output deve ter o seguinte formato:
+O output sem em html e ter o seguinte formato:
 
-Resumo: <Resumo geral do plano de ação>
-Plano de ação sugerido: <lista de ações>
+<div id="show_review">
+<div><p><Análise do plano de ação proposto></p></div>
+<div id="show_review">Plano de ação:</div> <div><ul><lista de ações></ul></div>
+</div>
 
 #Dados de entrada: 
 
@@ -538,4 +595,7 @@ Indicadores da área geral e recorte de todos os comentários organizados por te
 
 Resumo das oportunidades de melhoria e reconhecimentos de todas as áreas:
 {areas_review}
+
+Exemplo de saída:
+{REVIEW_EXAMPLE}
 """

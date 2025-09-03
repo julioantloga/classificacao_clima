@@ -7,6 +7,7 @@ from .openai_client import get_openai_client
 from db_config import engine
 from sqlalchemy import text
 from collections import deque
+import re
 
 from .areas_repository import (
     ensure_general_area,
@@ -370,38 +371,9 @@ def metric_area_intents_json(
     peso_area: float,
     area_score: float,
     recortes_by_theme_intent: Dict[str, Dict[str, list]],
+    perguntas_insatisfeitas_area: Dict[str, int]
 ) -> str:
-    """
-    Estrutura final:
-    {
-      "metricas": {
-         "funcionarios": int,
-         "respondentes": int,
-         "adesao": float(%),
-         "criticas": int,
-         "sugestoes": int,
-         "reconhecimentos": int,
-         "neutros": int,
-         "peso_area": float,
-         "score_area": float
-      },
-      "temas_citados": {
-         "<Tema>": {
-            "criticas": int, "sugestoes": int, "reconhecimentos": int, "neutros": int, "total": int
-         },
-         ...
-      },
-      "recortes": {
-         "<Tema>": {
-            "critica": [ ... ],
-            "sugestao": [ ... ],
-            "reconhecimento": [ ... ],
-            "neutro": [ ... ]
-         },
-         ...
-      }
-    }
-    """
+
     # converte o dicionário themes_counts para usar chaves no plural em PT-BR no JSON
     temas_citados = {}
     for tema, c in (themes_counts or {}).items():
@@ -425,6 +397,7 @@ def metric_area_intents_json(
             "peso_area": round(float(peso_area), 6),
             "score_area": round(float(area_score), 6),
         },
+        "perguntas com insatisfeitos" : perguntas_insatisfeitas_area,
         "temas_citados": temas_citados,
         "recortes": recortes_by_theme_intent or {}
     }
@@ -432,6 +405,7 @@ def metric_area_intents_json(
 
 def compute_area_metrics_python(
     survey_id: int,
+    df_notas_areas,
     min_level: int = 0,
     max_level: int = 999,
     min_commenters: int = 3,
@@ -508,10 +482,21 @@ def compute_area_metrics_python(
 
     rows = []
 
+    df_notas_areas = df_notas_areas[['area_id','pergunta', 'porcentagem insatisfeitos']]
+
     # --- Processa cada área
     for _, area_row in df_areas.iterrows():
         aid = int(area_row["area_id"])
         lvl = int(area_row.get("area_level", 0))
+
+        notas_area = df_notas_areas[
+            (df_notas_areas['area_id'] == aid) &
+            (df_notas_areas['porcentagem insatisfeitos'] > 0)
+        ]
+
+        perguntas_insatisfeitas_area = dict(
+            zip(notas_area['pergunta'], notas_area['porcentagem insatisfeitos'])
+        )
 
         # --- NOVA REGRA: sempre incluir áreas de nível 0
         if lvl != 0 and (lvl < min_level or lvl > max_level):
@@ -570,6 +555,7 @@ def compute_area_metrics_python(
             peso_area=peso_area,
             area_score=area_score,
             recortes_by_theme_intent=recortes_by_theme_intent,
+            perguntas_insatisfeitas_area = perguntas_insatisfeitas_area
         )
 
         # Linha de métricas para update em área
@@ -592,6 +578,7 @@ def compute_area_metrics_python(
 
 def compute_and_update_area_metrics_python(
     survey_id: int,
+    df_notas_areas,
     min_level: int,
     max_level: int,
     min_commenters: int,
@@ -600,7 +587,8 @@ def compute_and_update_area_metrics_python(
     Calcula métricas em Python e persiste no Postgres.
     Retorna quantas áreas foram atualizadas.
     """
-    df = compute_area_metrics_python(survey_id, min_level, max_level, min_commenters)
+
+    df = compute_area_metrics_python(survey_id, df_notas_areas, min_level, max_level, min_commenters)
     return update_area_metrics_bulk(survey_id, df)
 
 def compute_and_update_general_metrics(survey_id: int) -> int:
@@ -752,19 +740,29 @@ def metric_theme_counts(sub_perceptions: pd.DataFrame) -> Dict[str, Dict[str, in
 # ============================================================
 
 REVIEW_EXAMPLE = f"""
-Resumo:
-A área obteve comentário de 7% (6/85) dos seus colaboradores, resultando em 15 comentários de crítica/sugestão e 4 reconhecimentos. 
-Os temas mais criticados foram Liderança e Gestão, Carga de Trabalho e Cultura e Valores Organizacionais, com relatos recorrentes 
-sobre distanciamento da liderança, pressão por resultados e desalinhamento cultural.
+<div id="show_review">
 
-Oportunidades:
-- Percepções negativas sobre a liderança, incluindo falta de preparo, contradições, cobrança excessiva e ausência de apoio.
-- Carga de trabalho considerada excessiva e metas desconectadas do contexto da área.
-- Falta de reconhecimento, baixa frequência de conversas individuais e desconexão com os valores da cultura.
+<div><p>Os temas que demosntram maior insatisfação são Liderança e Gestão, Carga de Trabalho e Cultura e Valores Organizacionais, com relatos recorrentes 
+sobre distanciamento da liderança, pressão por resultados e desalinhamento cultural.</p>
+</div>
 
-Destaques:
-- Orgulho pela cultura da empresa e identificação com o produto e as pessoas.
-- Colaboração entre colegas e ambiente de equipe coeso.
+<div class='review_item'>Oportunidades:</div>
+<div>
+<ul>
+<li>Percepções negativas sobre a liderança, incluindo falta de preparo, contradições, cobrança excessiva e ausência de apoio.</li>
+<li>Carga de trabalho considerada excessiva e metas desconectadas do contexto da área.</li>
+<li>Falta de reconhecimento, baixa frequência de conversas individuais e desconexão com os valores da cultura.</li>
+</ul>
+</div>
+
+<div class='review_text'>Destaques:</p>
+<div>
+<ul>
+<li>Orgulho pela cultura da empresa e identificação com o produto e as pessoas.</li>
+<li>Colaboração entre colegas e ambiente de equipe coeso.</li>
+</ul>
+</div>
+</div>
 """
 
 def _build_area_review_prompt(area_name: str, area_json: dict | str) -> str:
@@ -775,24 +773,30 @@ def _build_area_review_prompt(area_name: str, area_json: dict | str) -> str:
 
     return f"""
 Você é um especialista em análise de dados qualitativos de pesquisa de engajamento. 
-Sua tarefa é analisar os comentários da pesquisa de clima organizacional.
+Sua tarefa gerar um resumo com uma breve descrição, oportunidades de melhoria e destaques a partir da análise dos dados da área em uma pesquisa de clima organizacional.
 
-Seu objetivo é gerar um resumo da área {area_name} com base nos dados fornecidos. 
+Nome da área: {area_name}
+
 O resumo deve:
-- Analisar os comentários dos funcionários da área e sugerir *oportunidades de melhoria* (comentários de críticas e sugestões) e *destaques* (comentários de reconhecimentos).
+- Analisar os comentários dos funcionários da área.
+- Analizar as perguntas/afirmações com instatisfeitos presente nos dados de entrada, se tratam de perguntas que identificaram colaboradores insatisfeitos porém não tem comentários.
+- Apresentar *oportunidades de melhoria* (a partir dos comentários de críticas e sugestões e das perguntas com insatisfeitos) e *destaques* (a partir dos comentários de reconhecimentos)
 - Apresentar as sugestões em formato de bulet point, onde cada linha deve representar uma oportunidade de melhoria ou reconhecimento.
 - Concentrar as oportunidades de melhoria e reconhecimento em até 3 bulet points.
-- Criar um resumo enxuto, para a diretoria, enfaizando a adesão de pessoas que comentaram na pesquisa, a quantidade de comentários críticos/sugestão e reconhecimento e os 3 temas mais criticados da área.
+- Criar um resumo enxuto, para a diretoria, enfaizando os 3 temas com mais críticas ou sugestões da área.
 - Evitar dar sugestões de solução, foque em trazer o que pode ser melhorado.
 - Evitar termos como 'muito', 'fortemente', 'extremamente', 'severa', 'incrível', 'urgente'...
 - Evitar repetir dados. Tente concentrar as informações para evitar conteúdo prolíxo.
 - Em casos de adesão abaixo de 30% evidencie que o resultado foi gerado com base em poucos comentários.
 
-O output deve ter o seguinte formato:
+O output deve ser em html e ter o seguinte formato:
 
-Resumo: <Análise enxuta dos indicadores>
-Oportunidades: <lista das oportunidades de melhoria>
-Destaques: <lista dos pontos de reconhecimentos>
+O output deve ser em html e ter o seguinte formato:
+<div id="show_review">
+<div><p><Análise enxuta dos dados da pesquisa></p></div>
+<div id="show_review">Oportunidades:</div> <div><ul><lista das oportunidades de melhoria></ul></div>
+<div id="show_review">Destaques:</div> <div><ul><lista dos pontos de reconhecimentos><ul></div>
+</div>
 
 Exemplo de Resposta:
 {REVIEW_EXAMPLE}
@@ -881,6 +885,10 @@ def generate_and_save_area_reviews(
                 temperature=temperature,
             )
             content = resp.choices[0].message.content.strip()
+            match = re.search(r'<div id="show_review">.*?</div>\s*$', content, flags=re.DOTALL)
+            if match:
+                content = match.group(0)
+
             out_rows.append({"area_id": area_id, "area_review": content})
             if on_progress: on_progress(area_id, area_name, "ok")
 
@@ -1181,8 +1189,12 @@ def generate_and_save_area_plans(survey_id: int, model: str, temperature: float,
                 raise ValueError("Resposta inválida da API OpenAI")
             
             plan_text = choices[0].message.content.strip()
-            print(plan_text)
+            match = re.search(r'<div id="show_review">.*?</div>\s*$', plan_text, flags=re.DOTALL)
+            if match:
+                plan_text = match.group(0)
+
             save_area_plan(area_id, plan_text)
+
             updated += 1
             if on_progress:
                 on_progress(area_id, area_name, "ok")
@@ -1197,6 +1209,24 @@ def _build_area_plan_prompt(area_name: str, json_area: str, area_review: str = "
     """
     Gera o prompt para criação do plano de ação com base no conteúdo da área.
     """
+
+    REVIEW_EXAMPLE = f"""
+<div id="show_review">
+<div><p>As ações propostas estão direcionadas em resolvr problemas relacionados à insatisfação são Liderança e Gestão, Carga de Trabalho e Cultura e Valores Organizacionais, com relatos recorrentes 
+sobre distanciamento da liderança, pressão por resultados e desalinhamento cultural.</p>
+</div>
+
+<div class='review_item'>Plano de ação:</div>
+<div>
+<ul>
+<li>Aumentar o valor do vale alimentação para um valor competitivo no mercado.</li>
+<li>Rodar uma pesquisa para ter o diagnóstico de Burnout da empresa</li>
+</ul>
+</div>
+
+</div>
+"""
+
     # Ajuste aqui conforme for necessário para leitura das intenções (strings JSON, dict, etc.)
     objetivos = "Melhorar o ambiente de trabalho e fortalecer a cultura de colaboração entre equipes."
     restricoes = "Não contratar mais pessoas neste momento. Não alterar estruturas salariais."
@@ -1217,10 +1247,12 @@ Sua tarefa é elaborar um plano de ação para a área {area_name} com base nos 
 - Evite repetir dados.
 
 #Output
-O output deve ter o seguinte formato:
+O output sem em html e ter o seguinte formato:
 
-Resumo: <Resumo geral do plano de ação>
-Plano de ação sugerido: <lista de ações>
+<div id="show_review">
+<div><p><Análise do plano de ação proposto></p></div>
+<div id="show_review">Plano de ação:</div> <div><ul><lista de ações></ul></div>
+</div>
 
 #Dados de entrada: 
 
@@ -1235,5 +1267,9 @@ Indicadores da área e recorte dos comentários organizados por temas e intenç�
 
 Resumo da área:
 {area_review}
+
+Exemplo de saída:
+{REVIEW_EXAMPLE}
 """
     return prompt.strip()
+

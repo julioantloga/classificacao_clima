@@ -154,6 +154,7 @@ def get_area_review_plan(area_id: int, survey_id: int):
         WHERE area_id = :aid AND area_survey_id = :sid
         LIMIT 1
     """)
+
     with engine.begin() as conn:
         row = conn.execute(sql, {"aid": area_id, "sid": survey_id}).mappings().first()
 

@@ -1,4 +1,4 @@
-<h5>Visão Geral — {{ survey.name }} (ID {{ survey.id }})</h5>
+<h5>Visão Geral — {{ survey.name }}</h5>
 
 {% if data and (data.area_review or data.area_plan) %}
   <div class="card z-depth-0" style="margin-bottom: 14px;">
@@ -11,14 +11,14 @@
         <div class="col s12 m6">
           <h6 class="grey-text text-darken-2" style="margin-bottom: 6px;">Area Review</h6>
           <div class="grey lighten-4" style="padding:10px; border-radius:6px; white-space:pre-wrap;">
-            {{ data.area_review or '—' }}
+            {{ (data.area_review or '—') | safe }}
           </div>
         </div>
 
         <div class="col s12 m6">
           <h6 class="grey-text text-darken-2" style="margin-bottom: 6px;">Area Plan</h6>
           <div class="grey lighten-4" style="padding:10px; border-radius:6px; white-space:pre-wrap;">
-            {{ data.area_plan or '—' }}
+            {{ (data.area_plan or '—') | safe }}
           </div>
         </div>
       </div>
