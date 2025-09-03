@@ -1,0 +1,103 @@
+<h5>Comentários — {{ survey.name }} (ID {{ survey.id }})</h5>
+
+<form id="comments-search-form" class="row" action="/dashboard/comments/search" method="GET" style="margin-bottom: 8px;">
+  <input type="hidden" name="survey_id" value="{{ survey.id }}"/>
+
+  <!-- Área -->
+  <div class="input-field col s12 m4">
+    <select id="search-area" name="area">
+      <option value="" selected>Todas</option>
+      {% for a in areas %}
+        <option value="{{ a.area_id }}">{{ a.area_name }}</option>
+      {% endfor %}
+    </select>
+    <label>Área</label>
+  </div>
+
+  <!-- Intenção -->
+  <div class="input-field col s12 m4">
+    <select id="search-intention" name="intention">
+      <option value="" selected>—</option>
+      <option value="reconhecimento">Reconhecimento</option>
+      <option value="crítica">Crítica</option>
+      <option value="sugestão">Sugestão</option>
+      <option value="neutro">Neutro</option>
+    </select>
+    <label>Intenção</label>
+  </div>
+
+  <!-- Tema -->
+  <div class="input-field col s12 m4">
+    <select id="search-theme" name="theme">
+      <option value="" selected>Todos</option>
+      {% for t in themes %}
+        <option value="{{ t }}">{{ t }}</option>
+      {% endfor %}
+    </select>
+    <label>Tema</label>
+  </div>
+
+  <div class="col s12 right-align" style="margin-top: 4px;">
+    <button type="submit" class="btn waves-effect waves-light">Buscar</button>
+  </div>
+</form>
+
+{# resumo (chips) #}
+{% set ns = namespace(total_perceptions=0) %}
+{% for r in rows %}
+  {% set ns.total_perceptions = ns.total_perceptions + (r.perceptions|length if r.perceptions is defined else 0) %}
+{% endfor %}
+
+<div class="row" style="margin-bottom:12px;">
+  <div class="col s12">
+    <span class="chip">Comentários: {{ rows|length }}</span>
+    <span class="chip blue lighten-5 blue-text text-darken-2">Percepções: {{ ns.total_perceptions }}</span>
+  </div>
+</div>
+
+<ul class="collection">
+  {% for r in rows %}
+  <li class="collection-item">
+    <div class="grey-text text-darken-1" style="font-size:12px;">
+      {% if r.question_name %}Pergunta: <strong>{{ r.question_name }}</strong> • {% endif %}
+      Comentário #{{ r.comment_id }}
+    </div>
+
+    <p style="margin:6px 0 10px;">{{ r.comment }}</p>
+
+    {% if r.perceptions and r.perceptions|length %}
+      {# chips com tema + intenção #}
+      <div style="margin:6px 0;">
+        {% for p in r.perceptions %}
+          {% set intent = (p.perception_intension or 'indefinido')|lower %}
+          {% set bg = 'green lighten-5' if intent == 'positivo' else 'red lighten-5' if intent == 'negativo' else 'grey lighten-4' %}
+          {% set fg = 'green-text text-darken-2' if intent == 'positivo' else 'red-text text-darken-2' if intent == 'negativo' else 'grey-text text-darken-2' %}
+          <span class="chip {{ bg }} {{ fg }}" style="margin-right:4px;">
+            {{ p.perception_theme }} • {{ intent|capitalize }}
+          </span>
+        {% endfor %}
+      </div>
+
+      {# lista detalhada das percepções #}
+      <ul class="collection" style="margin-top:8px;">
+        {% for p in r.perceptions %}
+          <li class="collection-item" style="padding:10px 12px;">
+            <i class="material-icons tiny" style="vertical-align:middle;margin-right:4px;">label</i>
+            <strong>{{ p.perception_theme }}</strong>
+            <span class="grey-text">— {{ (p.perception_intension or 'Indefinido')|capitalize }}</span>
+            {% if p.perception_comment_clipping %}
+              <blockquote class="grey lighten-4" style="margin:6px 0 0; padding:6px 10px;">
+                {{ p.perception_comment_clipping }}
+              </blockquote>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <span class="grey-text">Sem percepções para este comentário.</span>
+    {% endif %}
+  </li>
+  {% else %}
+  <li class="collection-item grey-text">Nenhum comentário encontrado para esta pesquisa.</li>
+  {% endfor %}
+</ul>

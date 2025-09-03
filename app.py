@@ -11,7 +11,7 @@ from service.classification_service import data_preprocessing
 from service.classification_service import persist_questions_and_comments
 from service.areas_service import create_organizational_chart
 from service.person_service import person_preprocessing
-from service.survey_repository import insert_survey
+from service.survey_repository import insert_survey, get_survey, get_comments_with_perceptions, list_areas_with_non_null_score, list_perception_themes_for_survey, get_area_review_plan
 from service.areas_repository import insert_areas
 from service.person_repository import insert_person
 from service.perception_service import classify_and_save_perceptions
@@ -72,17 +72,34 @@ def read_csv_flex(src):
 def home():
     return send_from_directory("static", "index.html")
 
+@app.route('/api/surveys')
+def api_surveys():
+    from service.survey_repository import list_surveys
+    surveys = list_surveys()
+    return jsonify(surveys)
+
+
 @app.route('/dashboard/<page>')
 def dashboard_page(page):
-    allowed_pages = {
-        'overview': 'overview.html',
-        'area': 'area.html',
-        'comments': 'comments.html'
-    }
-    filename = allowed_pages.get(page)
-    if not filename:
-        abort(404)
-    return send_from_directory('stats', filename)
+
+    survey_id = request.args.get("survey_id", type=int)
+    survey = get_survey(survey_id)
+
+    if page == "overview":
+        data = get_area_review_plan(0, survey_id)
+        return render_template("overview.html",survey=survey, data=data)
+    
+    if page == "area":
+        #data = get_overview_data(survey_id)
+        return render_template("area.html", survey=survey)
+    
+    if page == "comments":
+
+        rows = get_comments_with_perceptions(survey_id)
+        areas = list_areas_with_non_null_score(survey_id)
+        themes = list_perception_themes_for_survey(survey_id)
+
+        return render_template("comments.html", survey=survey, rows=rows, areas=areas, themes=themes)
 
 @app.route("/classifica_comentarios", methods=["POST"])
 def classifica_comentarios_route():

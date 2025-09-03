@@ -95,13 +95,15 @@
 
           <!-- Conteúdo das abas -->
           <div id="dashboard-overview" class="dashboard-content" style="margin-top: 24px;">
-            <div id="dashboard-container">Carregando...</div>
+            <div id="dashboard-container-overview">Selecione uma pesquisa acima…</div>
           </div>
+
           <div id="dashboard-area" class="dashboard-content hidden" style="margin-top: 24px;">
-            <p>Conteúdo da Visão por Área...</p>
+            <div id="dashboard-container-area">Selecione uma pesquisa acima…</div>
           </div>
+
           <div id="dashboard-comments" class="dashboard-content hidden" style="margin-top: 24px;">
-            <p>Conteúdo dos Comentários...</p>
+            <div id="dashboard-container-comments">Selecione uma pesquisa acima…</div>
           </div>
 
         </div>
@@ -325,25 +327,135 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', function () {
+      
+      // ===== Dashboard: estado e utilitários
+      let DASHBOARD_SURVEY_ID = null;
+      const dashboardSelect = document.getElementById('dashboard-survey-select');
+      const dashboardHelper = document.getElementById('dashboard-survey-helper');
+
+      function getActiveDashboardPage() {
+        const active = document.querySelector('.dashboard-tab.active');
+        return active ? active.getAttribute('href').replace('#dashboard-', '') : 'overview';
+      }
+
+      // Carrega opções de pesquisa no select
+      async function loadDashboardSurveyOptions() {
+        try {
+          const res = await fetch('/api/surveys');
+          const list = await res.json();
+
+          dashboardSelect.innerHTML = '';
+          if (Array.isArray(list) && list.length) {
+            // placeholder
+            dashboardSelect.insertAdjacentHTML('beforeend', `<option value="" disabled selected>Selecione…</option>`);
+            // opções
+            list.forEach(s => {
+              const label = s.name ? `${s.name} (ID ${s.id})` : `Pesquisa ${s.id}`;
+              dashboardSelect.insertAdjacentHTML('beforeend', `<option value="${s.id}">${label}</option>`);
+            });
+          } else {
+            dashboardSelect.innerHTML = `<option value="" disabled selected>Nenhuma pesquisa encontrada</option>`;
+          }
+
+          // init/reinit Materialize select
+          M.FormSelect.init(dashboardSelect);
+
+          // mudança de seleção
+          dashboardSelect.addEventListener('change', () => {
+            DASHBOARD_SURVEY_ID = dashboardSelect.value ? Number(dashboardSelect.value) : null;
+            if (DASHBOARD_SURVEY_ID) {
+              dashboardHelper.textContent = `Pesquisa selecionada: ${DASHBOARD_SURVEY_ID}`;
+              dashboardHelper.className = 'valid-msg';
+              refreshCurrentDashboardPage();
+            } else {
+              dashboardHelper.textContent = 'Escolha uma pesquisa para visualizar os dados.';
+              dashboardHelper.className = 'helper';
+            }
+          });
+
+        } catch (err) {
+          dashboardSelect.innerHTML = `<option value="" disabled selected>Erro ao carregar pesquisas</option>`;
+          M.FormSelect.init(dashboardSelect);
+          dashboardHelper.textContent = 'Não foi possível carregar as pesquisas.';
+          dashboardHelper.className = 'invalid-msg';
+        }
+      }
+
+
+      // Recarrega a aba atual com o survey selecionado
+      function refreshCurrentDashboardPage() {
+        if (!DASHBOARD_SURVEY_ID) return;
+        const page = getActiveDashboardPage();
+        loadDashboardContent(page); // já vai passar o survey_id
+      }
+
+      // Mapeia cada aba para seu container
+      const TAB_CONTAINER_ID = {
+        overview: 'dashboard-container-overview',
+        area: 'dashboard-container-area',
+        comments: 'dashboard-container-comments'
+      };
+
+      function wireCommentsForm(container) {
+        // (re)inicializa os selects do Materialize dentro do parcial
+        if (window.M && M.FormSelect) {
+          M.FormSelect.init(container.querySelectorAll('select'));
+        }
+
+        const form = container.querySelector('#comments-search-form');
+        if (!form) return;
+
+        form.addEventListener('submit', function (e) {
+          e.preventDefault();
+          const params = new URLSearchParams(new FormData(form));
+          const url = form.getAttribute('action') + '?' + params.toString();
+
+          fetch(url)
+            .then(r => r.json())
+            .then(j => {
+              if (window.M && M.toast) M.toast({ html: 'Busca enviada', displayLength: 1500 });
+              // TODO: quando implementar a busca de fato, aqui você injeta o resultado na aba
+            })
+            .catch(() => {
+              if (window.M && M.toast) M.toast({ html: 'Erro ao enviar busca', classes: 'red' });
+            });
+        });
+      }
 
       function loadDashboardContent(page) {
-        const container = document.getElementById('dashboard-container');
+        const containerId = TAB_CONTAINER_ID[page];
+        const container = document.getElementById(containerId);
         if (!container) return;
 
-        container.innerHTML = 'Carregando...';
+        if (!DASHBOARD_SURVEY_ID) {
+          container.innerHTML = `<span class="helper">Selecione uma pesquisa acima para visualizar os dados.</span>`;
+          return;
+        }
 
-        fetch(`/dashboard/${page}`)
+        container.innerHTML = 'Carregando...';
+        const url = `/dashboard/${page}?survey_id=${encodeURIComponent(DASHBOARD_SURVEY_ID)}`;
+
+        fetch(url)
           .then(response => {
             if (!response.ok) throw new Error('Erro ao carregar conteúdo.');
             return response.text();
           })
           .then(html => {
             container.innerHTML = html;
+            
+            if (page === 'comments') {
+              wireCommentsForm(container);
+            } else if (window.M && M.FormSelect) {
+              // caso outras abas também tenham selects
+              M.FormSelect.init(container.querySelectorAll('select'));
+            }
+
           })
           .catch(err => {
             container.innerHTML = `<span class="red-text">${err.message}</span>`;
           });
       }
+
 
       // ===== Materialize inits
       const sidenavs = document.querySelectorAll('.sidenav');
@@ -390,7 +502,27 @@
           if (target === '#section-plan') sections.Plan.classList.remove('hidden');
           if (target === '#section-dashboard') {
             sections.dashboard.classList.remove('hidden');
-            loadDashboardContent('overview');  // Carrega visão geral por padrão
+
+            // carrega a lista de pesquisas só uma vez
+            if (!dashboardSelect.dataset.loaded) {
+              loadDashboardSurveyOptions().then(() => {
+                dashboardSelect.dataset.loaded = '1';
+              });
+            }
+
+            // define aba "Visão Geral" como ativa visualmente
+            document.querySelectorAll('.dashboard-tab').forEach(t => t.classList.remove('active'));
+            document.querySelector('.dashboard-tab[href="#dashboard-overview"]').classList.add('active');
+            document.querySelectorAll('.dashboard-content').forEach(c => c.classList.add('hidden'));
+            document.getElementById('dashboard-overview').classList.remove('hidden');
+
+            // se já houver pesquisa selecionada, carrega a visão geral; senão, mostra instrução
+            if (DASHBOARD_SURVEY_ID) {
+              loadDashboardContent('overview');
+            } else {
+              const container = document.getElementById('dashboard-container');
+              if (container) container.innerHTML = `<span class="helper">Selecione uma pesquisa acima para visualizar os dados.</span>`;
+            }
           }
 
           const inst = M.Sidenav.getInstance(document.querySelector('.sidenav'));
