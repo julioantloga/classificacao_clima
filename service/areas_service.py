@@ -491,7 +491,7 @@ def compute_area_metrics_python(
 
         notas_area = df_notas_areas[
             (df_notas_areas['area_id'] == aid) &
-            (df_notas_areas['porcentagem insatisfeitos'] > 0)
+            (df_notas_areas['porcentagem insatisfeitos'] >= 20)
         ]
 
         perguntas_insatisfeitas_area = dict(
@@ -781,7 +781,7 @@ Nome da área: {area_name}
 O resumo deve:
 - Analisar os *RECORTES* dos funcionários da área.
 - Enfatizar os 3 temas com maior insatisfação.
-- Analizar as *PERGUNTAS COM INSATISFEITOS*, enfatizar peguntas com maior porcentagem de insatisfeito.
+- Analizar as *PERGUNTAS COM INSATISFEITOS*, enfatizar o assunto das peguntas com maior porcentagem de insatisfeito.
 - Apresentar *oportunidades de melhoria* (a partir dos temas com maior críticas + sugestões e das perguntas com insatisfeitos) e *destaques* (a partir dos temas de reconhecimentos)
 - Apresentar as sugestões em formato de bulet point, onde cada linha deve representar uma oportunidade de melhoria ou reconhecimento.
 - Concentrar as oportunidades de melhoria e reconhecimento em até 3 bulet points.
