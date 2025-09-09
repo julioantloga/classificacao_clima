@@ -171,9 +171,6 @@ def classify_and_save_perceptions(
             ],
         )
         content = resp.choices[0].message.content 
-        
-        if resp.choices:
-            raise ValueError(f"problema na classificação: {content}")
 
         blocks = _parse_model_output(content)
         payload = []

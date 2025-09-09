@@ -341,7 +341,7 @@ def _worker_pipeline(job_id: str, paths: dict, config: dict):
             return df_campanha, df_person, df_instancia_areas, df_hierarquia_areas, df_person_areas, df_notas_areas
         (df_campanha, df_person, df_instancia_areas, df_hierarquia_areas, df_person_areas, df_notas_areas) = \
             timed_step(job_id, "Ler arquivos (CSV)", _read_csvs)
-
+        
         # 3) Pré-processar campanha → df_final
         df_processed = timed_step(job_id, "Normalizar respostas (df_final)", data_preprocessing,df_campanha, df_person, survey_id)
 
