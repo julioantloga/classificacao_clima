@@ -18,6 +18,7 @@ def employee_lookup_map(survey_id: int) -> Dict[str, dict]:
     with engine.begin() as conn:
         rows = conn.execute(sql, {"sid": survey_id}).mappings().all()
     out = {}
+    
     for r in rows:
         out[r["email"]] = {
             "employee_id": r["employee_id"],
