@@ -106,7 +106,6 @@ def api_surveys():
     surveys = list_surveys()
     return jsonify(surveys)
 
-
 @app.route('/dashboard/<page>')
 def dashboard_page(page):
 
