@@ -154,6 +154,8 @@ def classify_and_save_perceptions(
     unmatched = 0
     skipped = 0
 
+    completion_tokens_list = []  
+
     for email, items in grouped.items():
         if not items:
             skipped += 1
@@ -169,8 +171,11 @@ def classify_and_save_perceptions(
                 {"role": "system", "content": prompt_system},
                 {"role": "user", "content": prompt_user},
             ],
+            max_tokens=1000
         )
-        content = resp.choices[0].message.content 
+        content = resp.choices[0].message.content
+        
+        completion_tokens_list.append(resp.usage.completion_tokens)
 
         blocks = _parse_model_output(content)
         payload = []
@@ -195,5 +200,6 @@ def classify_and_save_perceptions(
         "employees": len(grouped),
         "perceptions": total_perc,
         "blocks_unmatched": unmatched,
-        "employees_skipped": skipped
+        "employees_skipped": skipped,
+        "completion_tokens": completion_tokens_list
     }
