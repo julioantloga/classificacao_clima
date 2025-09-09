@@ -6,7 +6,7 @@ from service.comment_repository import employee_lookup_map, insert_comments
 
 def data_preprocessing(df, df_person, survey_id):
     # Informar o id das perguntas abertas e perguntas que contém comentário
-    perguntas_abertas = [1, 18]
+    perguntas_abertas = [165,166,167,168,169,170,171,172,175,176,178,179,181,182,183,184,185,187,188,191,192,193,195,196,200,203,204,241,242,243]
     nova_planilha = []
     colunas = df.columns.tolist()
     i = 0
