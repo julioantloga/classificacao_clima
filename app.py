@@ -382,7 +382,7 @@ def _worker_pipeline(job_id: str, paths: dict, config: dict):
             "Abuso de autoridade",
             "Preconceito",
         ]
-        perc_stats = timed_step(job_id, "Classificar percepções", classify_and_save_perceptions, survey_id,temas, "gpt-4o", 0.0, False)
+        perc_stats = timed_step(job_id, "Classificar percepções", classify_and_save_perceptions, survey_id, temas, "gpt-4o", 0.0, False)
         progress_bus.put(job_id, {"event": "stats", "scope": "perceptions", "data": perc_stats})
 
         # 8) Calcular scores de áreas (Python)
