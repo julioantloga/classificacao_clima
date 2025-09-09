@@ -17,7 +17,7 @@
     body { background: #f5f5f5; }
     .brand { padding-left: 12px; }
     .container-wrap { padding: 24px; }
-    .card { border-radius: 8px; }
+    .card { border: 0px; }
     .btn-block { width: 100%; }
     .file-field .btn { background-color: var(--brand-blue); }
     .helper { margin-top: .25rem; color: #616161; font-size: .9rem; }
@@ -42,49 +42,184 @@
     .progress { height: 8px; border-radius: 4px; overflow: hidden; }
     .progress .determinate { background: var(--brand-blue); }
     .modal-footer > .btn-flat + .btn-flat { margin-left: 8px; }
-    /* Estilo da seção de filtro */
-#areas-search-form {
-  padding: 12px 16px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-}
+    
+    .card-search {
+      padding: 0px;
+      margin: 0px;
+    }
 
-/* Select estilizado */
-#search-area + label {
-  font-weight: 500;
-  color: #424242;
-}
+    .card-search-form {
+      padding: 0px;
+      font-weight: 500;
+      color: #424242;
+    }
 
-/* Botão alinhado */
-#areas-search-form .btn {
-  background-color: var(--brand-blue);
-  border-radius: 6px;
-}
+    .card-search-form .btn {
+      background-color: var(--brand-blue);
+      border-radius: 6px;
+    }
 
-/* Estilo dos cards de conteúdo */
-.area-card {
-  background: #fff;
-  padding: 16px;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-}
+    .card-content {
+      padding: 16px;
+      min-height: 600px;
+    }
 
-.area-card h6 {
-  font-weight: 500;
-  margin-bottom: 6px;
-}
+    .dashboard-content{
+      min-height: 600px;
+    }
 
-.area-content-box {
-  padding: 12px;
-  border-radius: 6px;
-  background: #f0f0f0;
-  white-space: pre-wrap;
-  font-size: 0.95rem;
-  line-height: 1.5;
-}
+    .card-content h6 {
+      font-weight: 500;
+      margin-top: 10px;
+      margin-bottom: 6px;
+      font-size: 22px;
+      line-height: 26px;
+    }
+
+    .content-box {
+      padding: 12px 16px;
+      border-radius: 4px;
+      background: #f0f0f0;
+      font-size: 16px;
+      line-height: 1.5;
+      margin-bottom: 0;
+    }
+
+    .content-box p {
+      margin: 0 0 10px 0;
+    }
+
+    .content-box br {
+      display: block;
+      content: "";
+      margin-top: 6px;
+    }
+
+    .dashboard-tab-wrapper {
+      margin-top: 24px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    /* Abas (topo) */
+    .tab-buttons {
+      display: flex;
+      background: #fff;
+      border-bottom: 1px solid #ddd;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 14px 16px;
+      background: none;
+      border: none;
+      outline: none;
+      text-align: center;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 16px;
+      transition: background 0.2s, color 0.2s;
+      color: #424242;
+      border-bottom: 3px solid transparent;
+    }
+
+    .tab-btn:hover {
+      background: #f5f5f5;
+    }
+
+    .tab-btn.active {
+      background: #e3f2fd;
+      border-bottom: 3px solid #1976d2;
+      color: #1976d2;
+    }
+
+    /* Painel de conteúdo */
+    .tab-content-panel {
+      padding: 24px;
+      background: #fff;
+    }
+
+    /* RESTRITO apenas ao select da pesquisa */
+    #dashboard-survey-select.select-dropdown {
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 16px;
+      height: auto;
+    }
+
+    /* Ícone de seta dentro do select da pesquisa */
+    #dashboard-survey-select ~ .caret {
+      right: 12px;
+      top: 14px;
+    }
+
+    #show_review {
+      padding: 0px;
+      margin: 0px;
+    }
+
+    #review_item {
+      padding: 0px;
+      margin-top: 10px;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+
+    #show_review p{
+      padding: 10px 0px 10px 0px;
+      margin-bottom: 10px;
+      border-bottom: #a7a7a7 dashed 1px;
+    }
+
+    #show_review ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    #show_review li {
+      margin-bottom: 15px;         
+      font-size: 16px;            
+      color: #333;              
+      line-height: 1.4;  
+      list-style-type: circle;
+    }
+
+    .show_review {
+      padding: 0px;
+      margin: 0px;
+    }
+
+    .review_item {
+      padding: 0px;
+      margin-top: 10px;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+
+    .show_review p{
+      padding: 10px 0px 10px 0px;
+      margin-bottom: 10px;
+      border-bottom: #a7a7a7 dashed 1px;
+    }
+
+    .show_review ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    .show_review li {
+      margin-bottom: 15px;         
+      font-size: 16px;            
+      color: #333;              
+      line-height: 1.4;  
+      list-style-type: circle;
+    }
+
 
   </style>
+
 </head>
 <body>
 
@@ -105,8 +240,8 @@
         <a href="#!"><span class="white-text email">Selecione uma ação</span></a>
       </div>
     </li>
-    <li><a href="#section-dashboard" class="menu-link"><i class="material-icons">dashboard</i>Dashboard</a></li>
-    <li><a href="#section-new-survey" class="menu-link active-link"><i class="material-icons">note_add</i>Cadastrar nova pesquisa</a></li>
+    <li><a href="#section-dashboard" class="menu-link active-link"><i class="material-icons">dashboard</i>Dashboard</a></li>
+    <li><a href="#section-new-survey" class="menu-link"><i class="material-icons">note_add</i>Cadastrar nova pesquisa</a></li>
     <li><a href="#section-area-review" class="menu-link"><i class="material-icons">description</i>Gerar resumos</a></li>
     <li><a href="#section-plan" class="menu-link"><i class="material-icons">description</i>Gerar planos de ação</a></li>
   </ul>
@@ -114,46 +249,54 @@
   <main class="container-wrap" style="margin-left: 300px; max-width: 1100px;">
 
     <!-- Seção: Dashboard -->
-    <section id="section-dashboard" class="hidden">
+    <section id="section-dashboard">
       <div class="card z-depth-1">
         <div class="card-content">
           <span class="card-title section-header">Dashboard</span>
 
           <!-- Filtro de pesquisa (survey) -->
-          <div class="row" style="margin-bottom: 0;">
-            <div class="input-field col s12 m6">
-              <select id="dashboard-survey-select"></select>
-              <label for="dashboard-survey-select">Selecione a pesquisa</label>
-              <span id="dashboard-survey-helper" class="helper">Escolha uma pesquisa para visualizar os dados.</span>
+          <div class="row" style="margin-top: 24px;">
+            <div class="col s12 center-align">
+              <div class="input-field" style="max-width: 400px; margin: 0 auto;">
+                <select id="dashboard-survey-select"></select>
+                <label for="dashboard-survey-select">Selecione a pesquisa</label>
+                <span id="dashboard-survey-helper" class="helper" style="display:block; text-align:center;">
+                  Escolha uma pesquisa para visualizar os dados.
+                </span>
+              </div>
             </div>
-          </div>  
-
-          <!-- Menu horizontal -->
-          <ul class="tabs tabs-fixed-width">
-            <li class="tab col s4"><a class="active dashboard-tab" href="#dashboard-overview">Visão Geral</a></li>
-            <li class="tab col s4"><a class="dashboard-tab" href="#dashboard-area">Visão por Área</a></li>
-            <li class="tab col s4"><a class="dashboard-tab" href="#dashboard-comments">Comentários</a></li>
-          </ul>
-
-          <!-- Conteúdo das abas -->
-          <div id="dashboard-overview" class="dashboard-content" style="margin-top: 24px;">
-            <div id="dashboard-container-overview">Selecione uma pesquisa acima…</div>
           </div>
 
-          <div id="dashboard-area" class="dashboard-content hidden" style="margin-top: 24px;">
-            <div id="dashboard-container-area">Selecione uma pesquisa acima…</div>
+          <div class="dashboard-tab-wrapper">
+
+            <!-- Abas -->
+            <div class="tab-buttons">
+              <button class="tab-btn active" data-tab="overview">Visão Geral</button>
+              <button class="tab-btn" data-tab="area">Visão por Área</button>
+              <button class="tab-btn" data-tab="comments">Comentários</button>
+            </div>
+
+            <!-- Conteúdo das abas -->
+            <div id="dashboard-overview" class="dashboard-content tab-content-panel">
+              <div id="dashboard-container-overview">Selecione uma pesquisa acima…</div>
+            </div>
+
+            <div id="dashboard-area" class="dashboard-content tab-content-panel hidden">
+              <div id="dashboard-container-area">Selecione uma pesquisa acima…</div>
+            </div>
+
+            <div id="dashboard-comments" class="dashboard-content tab-content-panel hidden">
+              <div id="dashboard-container-comments">Selecione uma pesquisa acima…</div>
+            </div>
           </div>
 
-          <div id="dashboard-comments" class="dashboard-content hidden" style="margin-top: 24px;">
-            <div id="dashboard-container-comments">Selecione uma pesquisa acima…</div>
-          </div>
 
         </div>
       </div>
     </section>
 
     <!-- Seção: Cadastrar nova pesquisa -->
-    <section id="section-new-survey">
+    <section id="section-new-survey" class="hidden">
       <div class="card z-depth-1">
         <div class="card-content">
           <span class="card-title section-header">Cadastrar nova pesquisa</span>
@@ -382,10 +525,68 @@
 
   <!-- Materialize JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js" defer></script>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       
+      function renderThemesIntentsChart() {
+        const el = document.getElementById('themes-intents-chart');
+        if (!el) return;  // não renderiza se não estiver presente
+
+        const themesIntentsData = window.themesIntentsData || [];
+        if (!themesIntentsData.length) return;
+
+        const groupedData = {};
+        const allIntents = new Set();
+
+        themesIntentsData.forEach(row => {
+          const tema = row.tema;
+          const intencao = row.intencao;
+          const qtd = row.qtd;
+
+          if (!groupedData[tema]) groupedData[tema] = {};
+          groupedData[tema][intencao] = qtd;
+          allIntents.add(intencao);
+        });
+
+        const temas = Object.keys(groupedData);
+        const intents = Array.from(allIntents);
+
+        const traces = intents.map(intencao => ({
+          x: temas,
+          y: temas.map(tema => groupedData[tema][intencao] || 0),
+          name: intencao,
+          type: 'bar'
+        }));
+
+        const layout = {
+        title:"Análise dos comentários:",
+        barmode: 'stack',
+        /*margin: { t: 0, b:0, l: 0, r: 0 },*/  // reduz margens
+        xaxis: {
+          visible: true, 
+          showticklabels: true,
+          showgrid: true
+        },
+        yaxis: {
+          visible: true,  
+          showticklabels: true,
+          showgrid: true
+        },
+        showlegend: false,  // remove legenda
+        displayModeBar: false // remove barra de ferramentas
+        };
+
+        const config = {
+        displayModeBar: false,  // remove barra de ferramentas
+        responsive: false
+        };
+
+
+        Plotly.newPlot(el, traces, layout);
+      } 
+
       // ===== Dashboard: estado e utilitários
       let DASHBOARD_SURVEY_ID = null;
       const dashboardSelect = document.getElementById('dashboard-survey-select');
@@ -497,8 +698,22 @@
             .then(r => { if (!r.ok) throw new Error('Erro ao buscar área.'); return r.text(); })
             .then(html => {
               container.innerHTML = html;
+              
+              // Copia o objeto de dados JSON do HTML para JS (veja abaixo)
+              const rawDataEl = container.querySelector('#themes-intents-data');
+              if (rawDataEl) {
+                try {
+                  window.themesIntentsData = JSON.parse(rawDataEl.textContent);
+                } catch {
+                  window.themesIntentsData = [];
+                }
+              }
+
               // rewire após reinjetar
               wireAreasForm(container);
+
+              // renderiza o gráfico
+              renderThemesIntentsChart();
             })
             .catch(err => {
               container.innerHTML = `<span class="red-text">${err.message}</span>`;
@@ -602,8 +817,19 @@
             }
 
             // define aba "Visão Geral" como ativa visualmente
-            document.querySelectorAll('.dashboard-tab').forEach(t => t.classList.remove('active'));
-            document.querySelector('.dashboard-tab[href="#dashboard-overview"]').classList.add('active');
+            tabButtons.forEach(b => b.classList.remove('active'));
+            document.querySelector('.tab-btn[data-tab="overview"]').classList.add('active');
+
+            Object.entries(dashboardSections).forEach(([key, el]) => {
+              if (key === 'overview') {
+                el.classList.remove('hidden');
+                loadDashboardContent(key);
+              } else {
+                el.classList.add('hidden');
+              }
+            });
+
+
             document.querySelectorAll('.dashboard-content').forEach(c => c.classList.add('hidden'));
             document.getElementById('dashboard-overview').classList.remove('hidden');
 
@@ -622,24 +848,32 @@
       });
 
       // Tabs internas do Dashboard
-      const dashboardTabs = document.querySelectorAll('.dashboard-tab');
-      const dashboardContents = document.querySelectorAll('.dashboard-content');
+      const tabButtons = document.querySelectorAll('.tab-btn');
+      const dashboardSections = {
+        overview: document.getElementById('dashboard-overview'),
+        area: document.getElementById('dashboard-area'),
+        comments: document.getElementById('dashboard-comments')
+      };
 
-      dashboardTabs.forEach(tab => {
-        tab.addEventListener('click', (e) => {
-          e.preventDefault();
-          const targetId = tab.getAttribute('href').substring(1); // dashboard-overview, etc
-          dashboardContents.forEach(c => c.classList.add('hidden'));
-          document.getElementById(targetId).classList.remove('hidden');
+      tabButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          // Estiliza os botões
+          tabButtons.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
 
-          dashboardTabs.forEach(t => t.classList.remove('active'));
-          tab.classList.add('active');
-
-          // Carrega o conteúdo da aba clicada
-          const page = targetId.replace('dashboard-', '');
-          loadDashboardContent(page);
+          // Mostra conteúdo da aba selecionada
+          const selected = btn.getAttribute('data-tab');
+          Object.entries(dashboardSections).forEach(([key, el]) => {
+            if (key === selected) {
+              el.classList.remove('hidden');
+              loadDashboardContent(key);
+            } else {
+              el.classList.add('hidden');
+            }
+          });
         });
       });
+
 
       // ====== Form "Cadastrar nova pesquisa" (ASSÍNCRONO + SSE)
       const campanhaInput = document.getElementById('campanha');
@@ -1055,8 +1289,18 @@
         }
       });
 
+      // Seção de dashboard visível por padrão? Então carrega o select.
+      const sectionDashboard = document.getElementById('section-dashboard');
+      if (sectionDashboard && !sectionDashboard.classList.contains('hidden')) {
+        if (!dashboardSelect.dataset.loaded) {
+          loadDashboardSurveyOptions().then(() => {
+            dashboardSelect.dataset.loaded = '1';
+          });
+        }
+      }
 
     });  
   </script>
+
 </body>
 </html>

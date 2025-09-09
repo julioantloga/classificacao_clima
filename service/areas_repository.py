@@ -78,7 +78,7 @@ def fetch_survey_perceptions(survey_id: int) -> pd.DataFrame:
                     p.perception_comment_id,
                     p.perception_intension,
                     p.perception_theme,
-                    p.perception_comment_clipping 
+                    p.perception_comment_clipping
                 FROM perception p
                 JOIN comment c ON c.comment_id = p.perception_comment_id
                 JOIN question q ON q.question_id = c.comment_question_id

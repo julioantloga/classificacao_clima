@@ -3,25 +3,53 @@ from sqlalchemy import text
 import pandas as pd
 import os
 from db_config import engine
-
 import tempfile, uuid, threading, time
 from service.progress import progress_bus, timed_step
 
-from service.classification_service import data_preprocessing
-from service.classification_service import persist_questions_and_comments
-from service.areas_service import create_organizational_chart
-from service.person_service import person_preprocessing
-from service.survey_repository import insert_survey, get_survey, get_comments_with_perceptions, list_areas_with_non_null_score, list_perception_themes_for_survey, get_area_review_plan
-from service.areas_repository import insert_areas
-from service.person_repository import insert_person
-from service.perception_service import classify_and_save_perceptions
-from service.areas_service import compute_and_update_area_metrics_python
-from service.areas_service import generate_and_save_area_reviews
-from service.general_review import generate_and_save_general_review
-from service.areas_repository import fetch_survey_areas_with_intents
+from service.classification_service import (
+    data_preprocessing,
+    persist_questions_and_comments
+)
 
-from service.general_review import generate_and_save_general_plan
-from service.areas_service import generate_and_save_area_plans 
+from service.person_service import person_preprocessing
+
+from service.survey_repository import (
+    insert_survey,
+    get_survey,
+    get_comments_with_perceptions,
+    list_areas_with_non_null_score,
+    list_perception_themes_for_survey,
+    get_area_review_plan
+)
+
+from service.areas_repository import (
+    insert_areas,
+    fetch_survey_areas_with_intents
+)
+
+from service.person_repository import (
+    insert_person
+)
+
+from service.perception_service import classify_and_save_perceptions
+
+from service.areas_service import (
+    create_organizational_chart,
+    compute_and_update_area_metrics_python,
+    generate_and_save_area_reviews,
+    generate_and_save_area_plans,
+    get_themes_intents
+)
+
+from service.general_review import (
+    generate_and_save_general_review,
+    generate_and_save_general_plan,
+    get_ranking_area,
+    get_ranking_general_themes
+)
+
+
+
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
@@ -87,7 +115,13 @@ def dashboard_page(page):
 
     if page == "overview":
         data = get_area_review_plan(0, survey_id)
-        return render_template("overview.html",survey=survey, data=data)
+        area_review = data ["area_review"]
+        area_review = area_review.replace('\n', '')
+        area_review = area_review.replace('<br>', '')
+        ranking_areas = get_ranking_area(survey_id).to_dict(orient="records")
+        ranking_temas = get_ranking_general_themes(survey_id).to_dict(orient="records")
+
+        return render_template("overview.html",survey=survey, data=data, area_review=area_review, ranking_areas=ranking_areas, ranking_temas=ranking_temas)
     
     if page == "area":        
         areas = list_areas_with_non_null_score(survey_id)
@@ -110,11 +144,16 @@ def dashboard_areas_search():
     areas = list_areas_with_non_null_score(survey_id)
     data = get_area_review_plan(area_id=selected_area, survey_id=survey_id)  # << chama sua função
 
+    # Gráfico de temas x intenções
+    themes_intents_df = get_themes_intents(area_id=selected_area, survey_id=survey_id) if selected_area else None
+    themes_intents_data = themes_intents_df.to_dict(orient='records') if themes_intents_df is not None else []
+    print(themes_intents_data)
     return render_template("area.html",
                            survey=survey,
                            areas=areas,
                            data=data,
-                           selected_area=selected_area)
+                           selected_area=selected_area,
+                           themes_intents_data=themes_intents_data)
 
 @app.route("/classifica_comentarios", methods=["POST"])
 def classifica_comentarios_route():

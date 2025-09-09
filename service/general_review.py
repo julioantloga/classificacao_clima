@@ -129,7 +129,7 @@ def build_general_json_and_metrics(
     resumos_filhas = {}
     for _, r in df_top_ai.iterrows():
         name = r.get("area_name") or f"Área {r['area_id']}"
-        review = (r.get("area_review") or "").strip()
+        review = (r.get("area_review") or "").strip() 
         if review:
             resumos_filhas[name] = review
 
@@ -327,7 +327,7 @@ def generate_and_save_general_review(
     return content
 
 REVIEW_EXAMPLE = f"""
-<div id="show_review">
+<div class="show_review">
 <div><p>Os temas que demosntram maior insatisfação são Liderança e Gestão, Carga de Trabalho e Cultura e Valores Organizacionais, com relatos recorrentes 
 sobre distanciamento da liderança, pressão por resultados e desalinhamento cultural.</p>
 </div>
@@ -341,7 +341,7 @@ sobre distanciamento da liderança, pressão por resultados e desalinhamento cul
 </ul>
 </div>
 
-<div class='review_text'>Destaques:</p>
+<div class='review_item'>Destaques:</p>
 <divp>
 <ul>
 <li>Orgulho pela cultura da empresa e identificação com o produto e as pessoas.</li>
@@ -374,9 +374,11 @@ O resumo deve:
 O output deve ser em html e ter o seguinte formato:
 <div id="show_review">
 <div><p><Análise enxuta dos dados></p></div>
-<div id="show_review">Oportunidades:</div> <div><ul><lista das oportunidades de melhoria></ul></div>
-<div id="show_review">Destaques:</div> <div><ul><lista dos pontos de reconhecimentos><ul></div>
+<div id="review_item">Oportunidades:</div> <div><ul><lista das oportunidades de melhoria></ul></div>
+<div id="review_item">Destaques:</div> <div><ul><lista dos pontos de reconhecimentos><ul></div>
 </div>
+
+Não utilize cercas Markdown de início/fim no output. Ex: ```html ... ```
 
 Dados de entrada, estruturados em JSON, que representam a percepção de todos os colaboradores da empresa encontradas nos comentários da pesquisa de clima organizacional:
 {json_geral}
@@ -424,9 +426,6 @@ def generate_general_area_review(
             temperature=temperature,
         )
         content = resp.choices[0].message.content.strip()
-        match = re.search(r'<div id="show_review">.*?</div>\s*$', content, flags=re.DOTALL)
-        if match:
-            content = match.group(0)
 
         update_area_review(survey_id, 0, content)
         return True
@@ -542,7 +541,7 @@ def _build_general_plan_prompt(json_geral: dict | str, areas_review, objetivos, 
         json_geral = json.dumps(json_geral, ensure_ascii=False, indent=2)
 
     REVIEW_EXAMPLE = f"""
-<div id="show_review">
+<div class="show_review">
 <div class='review_item'>Resumo:</div>
 <div><p>As ações propostas estão direcionadas em resolvr problemas relacionados à insatisfação são Liderança e Gestão, Carga de Trabalho e Cultura e Valores Organizacionais, com relatos recorrentes 
 sobre distanciamento da liderança, pressão por resultados e desalinhamento cultural.</p>
@@ -577,10 +576,12 @@ Sua tarefa é elaborar um plano de ação geral para apresentar ao CEO da empres
 #Output
 O output sem em html e ter o seguinte formato:
 
-<div id="show_review">
+<div class="show_review">
 <div><p><Análise do plano de ação proposto></p></div>
-<div id="show_review">Plano de ação:</div> <div><ul><lista de ações></ul></div>
+<div class="review_item">Plano de ação:</div> <div><ul><lista de ações></ul></div>
 </div>
+
+Não utilize cercas Markdown de início/fim no output. Ex: ```html ... ```
 
 #Dados de entrada: 
 
@@ -599,3 +600,64 @@ Resumo das oportunidades de melhoria e reconhecimentos de todas as áreas:
 Exemplo de saída:
 {REVIEW_EXAMPLE}
 """
+
+def get_ranking_area(survey_id: int) -> pd.DataFrame:
+    with engine.begin() as conn:
+        df = pd.read_sql(
+            text("""
+                SELECT
+                  *
+                FROM area
+                WHERE area_survey_id = :sid
+                AND area_score IS NOT NULL
+                AND area_id != 0
+                ORDER BY area_score
+            """),
+            conn,
+            params={"sid": survey_id}
+        )
+
+    # Apenas reordena e filtra as colunas, se elas existirem
+    expected_columns = [
+        "area_id", "area_name",
+        "area_criticism_number", "area_suggestions_number", "area_recognition_number",
+        "area_response_rate", "area_score"
+    ]
+    df = df[[col for col in expected_columns if col in df.columns]]
+
+    return df
+
+def get_ranking_general_themes(survey_id: int) -> pd.DataFrame:
+    """
+    Retorna o ranking de temas com score baseado em críticas e sugestões:
+    crítica = 2 pontos, sugestão = 1 ponto
+
+    Args:
+        survey_id (int): ID do survey
+    Returns:
+        pd.DataFrame: colunas ['tema', 'qtd', 'score']
+    """
+    with engine.begin() as conn:
+        df = pd.read_sql(
+            text("""
+                SELECT
+                    perception_theme AS tema,
+                    COUNT(*) AS qtd,
+                    SUM(
+                        CASE 
+                            WHEN perception_intension = 'Crítica' THEN 2
+                            WHEN perception_intension = 'Sugestão' THEN 1
+                            ELSE 0
+                        END
+                    ) AS score
+                FROM perception
+                WHERE perception_survey_id = :sid
+                  AND perception_intension IN ('Crítica', 'Sugestão')
+                GROUP BY perception_theme
+                ORDER BY score DESC
+            """),
+            conn,
+            params={"sid": survey_id}
+        )
+    
+    return df

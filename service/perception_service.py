@@ -184,7 +184,9 @@ def classify_and_save_perceptions(
                     "perception_comment_id": cid,
                     "perception_comment_clipping": recorte[:1000] if recorte else None,  # proteção básica
                     "perception_theme": tema[:255] if tema else None,
-                    "perception_intension": intencao[:100] if intencao else None
+                    "perception_intension": intencao[:100] if intencao else None,
+                    "perception_survey_id": survey_id,
+                    "perception_area_id": next((i["area_id"] for i in items if i["comment_id"] == cid), None)
                 })
 
         total_perc += insert_perceptions(payload)

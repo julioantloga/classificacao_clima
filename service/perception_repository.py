@@ -42,15 +42,15 @@ def fetch_employee_comments_grouped(survey_id: int) -> Dict[str, List[dict]]:
 
 def insert_perceptions(rows: List[dict]) -> int:
     """
-    rows: [{perception_comment_id, perception_comment_clipping, perception_theme, perception_intension}]
+    rows: [{perception_comment_id, perception_comment_clipping, perception_theme, perception_intension, perception_area_id}]
     """
     if not rows:
         return 0
     sql = text("""
       INSERT INTO perception
-        (perception_comment_id, perception_comment_clipping, perception_theme, perception_intension)
+        (perception_comment_id, perception_comment_clipping, perception_theme, perception_intension, perception_survey_id, perception_area_id)
       VALUES
-        (:perception_comment_id, :perception_comment_clipping, :perception_theme, :perception_intension)
+        (:perception_comment_id, :perception_comment_clipping, :perception_theme, :perception_intension, :perception_survey_id, :perception_area_id)
     """)
     with engine.begin() as conn:
         conn.execute(sql, rows)

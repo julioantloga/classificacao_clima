@@ -739,8 +739,10 @@ def metric_theme_counts(sub_perceptions: pd.DataFrame) -> Dict[str, Dict[str, in
 # Resumo das áreas
 # ============================================================
 
-REVIEW_EXAMPLE = f"""
-<div id="show_review">
+def _build_area_review_prompt(area_name: str, area_json: dict | str) -> str:
+
+    REVIEW_EXAMPLE = f"""
+<div class="show_review">
 
 <div><p>Os temas que demosntram maior insatisfação são Liderança e Gestão, Carga de Trabalho e Cultura e Valores Organizacionais, com relatos recorrentes 
 sobre distanciamento da liderança, pressão por resultados e desalinhamento cultural.</p>
@@ -763,9 +765,8 @@ sobre distanciamento da liderança, pressão por resultados e desalinhamento cul
 </ul>
 </div>
 </div>
-"""
-
-def _build_area_review_prompt(area_name: str, area_json: dict | str) -> str:
+    """
+    
     if isinstance(area_json, str):
         json_str = area_json
     else:
@@ -778,9 +779,10 @@ Sua tarefa gerar um resumo com uma breve descrição, oportunidades de melhoria 
 Nome da área: {area_name}
 
 O resumo deve:
-- Analisar os comentários dos funcionários da área.
-- Analizar as perguntas/afirmações com instatisfeitos presente nos dados de entrada, se tratam de perguntas que identificaram colaboradores insatisfeitos porém não tem comentários.
-- Apresentar *oportunidades de melhoria* (a partir dos comentários de críticas e sugestões e das perguntas com insatisfeitos) e *destaques* (a partir dos comentários de reconhecimentos)
+- Analisar os *RECORTES* dos funcionários da área.
+- Enfatizar os 3 temas com maior insatisfação.
+- Analizar as *PERGUNTAS COM INSATISFEITOS*, enfatizar peguntas com maior porcentagem de insatisfeito.
+- Apresentar *oportunidades de melhoria* (a partir dos temas com maior críticas + sugestões e das perguntas com insatisfeitos) e *destaques* (a partir dos temas de reconhecimentos)
 - Apresentar as sugestões em formato de bulet point, onde cada linha deve representar uma oportunidade de melhoria ou reconhecimento.
 - Concentrar as oportunidades de melhoria e reconhecimento em até 3 bulet points.
 - Criar um resumo enxuto, para a diretoria, enfaizando os 3 temas com mais críticas ou sugestões da área.
@@ -792,11 +794,13 @@ O resumo deve:
 O output deve ser em html e ter o seguinte formato:
 
 O output deve ser em html e ter o seguinte formato:
-<div id="show_review">
+<div class="show_review">
 <div><p><Análise enxuta dos dados da pesquisa></p></div>
-<div id="show_review">Oportunidades:</div> <div><ul><lista das oportunidades de melhoria></ul></div>
-<div id="show_review">Destaques:</div> <div><ul><lista dos pontos de reconhecimentos><ul></div>
+<div class="review_item">Oportunclassades:</div> <div><ul><lista das oportunidades de melhoria></ul></div>
+<div id="review_item">Destaques:</div> <div><ul><lista dos pontos de reconhecimentos><ul></div>
 </div>
+
+Não utilize cercas Markdown de início/fim no output. Ex: ```html ... ```
 
 Exemplo de Resposta:
 {REVIEW_EXAMPLE}
@@ -1211,7 +1215,7 @@ def _build_area_plan_prompt(area_name: str, json_area: str, area_review: str = "
     """
 
     REVIEW_EXAMPLE = f"""
-<div id="show_review">
+<div class="show_review">
 <div><p>As ações propostas estão direcionadas em resolvr problemas relacionados à insatisfação são Liderança e Gestão, Carga de Trabalho e Cultura e Valores Organizacionais, com relatos recorrentes 
 sobre distanciamento da liderança, pressão por resultados e desalinhamento cultural.</p>
 </div>
@@ -1249,10 +1253,12 @@ Sua tarefa é elaborar um plano de ação para a área {area_name} com base nos 
 #Output
 O output sem em html e ter o seguinte formato:
 
-<div id="show_review">
+<div class="show_review">
 <div><p><Análise do plano de ação proposto></p></div>
-<div id="show_review">Plano de ação:</div> <div><ul><lista de ações></ul></div>
+<div class="review_item">Plano de ação:</div> <div><ul><lista de ações></ul></div>
 </div>
+
+Não utilize cercas Markdown de início/fim no output. Ex: ```html ... ```
 
 #Dados de entrada: 
 
@@ -1273,3 +1279,33 @@ Exemplo de saída:
 """
     return prompt.strip()
 
+# ============================================================
+# Análises
+# ============================================================
+
+def get_themes_intents(area_id: int,survey_id: int) -> pd.DataFrame:
+    """
+    Retorna a quantidade de percepções (tema x intenção) para os funcionários de uma determinada área.
+    Args:
+        area_id (int): ID da área selecionada.
+    Returns:
+        pd.DataFrame: DataFrame com colunas ['tema', 'intencao', 'qtd']
+    """
+    if not area_id:
+        return pd.DataFrame(columns=["tema", "intencao", "qtd"])
+
+    query = text("""
+        SELECT 
+            perception_theme AS tema,
+            perception_intension AS intencao,
+            COUNT(*) AS qtd
+        FROM perception
+        WHERE perception_survey_id = :survey_id AND perception_area_id = :area_id
+        GROUP BY perception_theme, perception_intension
+        ORDER BY perception_theme, perception_intension
+    """)
+
+    with engine.connect() as conn:
+        df = pd.read_sql(query, conn, params={"area_id": area_id, "survey_id": survey_id})
+
+    return df

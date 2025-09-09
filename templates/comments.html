@@ -1,6 +1,4 @@
-<h5>Comentários — {{ survey.name }} (ID {{ survey.id }})</h5>
-
-<form id="comments-search-form" class="row" action="/dashboard/comments/search" method="GET" style="margin-bottom: 8px;">
+<form id="comments-search-form" class="row" action="/dashboard/comments/search" method="GET" style="margin-bottom: 12px;">
   <input type="hidden" name="survey_id" value="{{ survey.id }}"/>
 
   <!-- Área -->
@@ -11,7 +9,7 @@
         <option value="{{ a.area_id }}">{{ a.area_name }}</option>
       {% endfor %}
     </select>
-    <label>Área</label>
+    <label for="search-area">Área</label>
   </div>
 
   <!-- Intenção -->
@@ -23,7 +21,7 @@
       <option value="sugestão">Sugestão</option>
       <option value="neutro">Neutro</option>
     </select>
-    <label>Intenção</label>
+    <label for="search-intention">Intenção</label>
   </div>
 
   <!-- Tema -->
@@ -34,11 +32,11 @@
         <option value="{{ t }}">{{ t }}</option>
       {% endfor %}
     </select>
-    <label>Tema</label>
+    <label for="search-theme">Tema</label>
   </div>
 
-  <div class="col s12 right-align" style="margin-top: 4px;">
-    <button type="submit" class="btn waves-effect waves-light">Buscar</button>
+  <div class="col s12 right-align" style="margin-top: 8px;">
+    <button type="submit" class="btn waves-effect blue">Buscar</button>
   </div>
 </form>
 
