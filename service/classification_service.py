@@ -112,8 +112,8 @@ def define_questions (df_campanha, survey_id, perguntas_abertas):
 
 def data_preprocessing(df_campanha, survey_id, df_employee):
     
-    #perguntas_abertas = [1,18]
-    perguntas_abertas = [165,166,167,168,169,170,171,172,175,176,178,179,181,182,183,184,185,187,188,191,192,193,195,196,200,203,204,241,242,243]
+    perguntas_abertas = [1,18]
+    #perguntas_abertas = [165,166,167,168,169,170,171,172,175,176,178,179,181,182,183,184,185,187,188,191,192,193,195,196,200,203,204,241,242,243]
     nova_planilha = []
     colunas = df_campanha.columns.tolist()
     # Valores indesejados para comentários

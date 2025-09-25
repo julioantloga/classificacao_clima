@@ -894,19 +894,15 @@ def generate_action_plans(critical_df, predefined_plans_json, survey_id):
 
     action_plan_results = []
 
-    predefined_plans = json.loads(predefined_plans_json)
-
     for _, row in critical_df.iterrows():
         theme_name = row["theme_name"]
         ranking = row["ranking"]
         recortes = row["recortes"]
 
-        plano_tema = next((item for item in predefined_plans if item["tema"] == theme_name), None)
-
         prompt = _build_prompt_for_theme(
             theme_name=theme_name,
             recortes=recortes,
-            plano_tema=plano_tema
+            predefined_plans_json=predefined_plans_json
         )
 
         try:

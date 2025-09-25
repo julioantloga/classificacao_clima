@@ -412,7 +412,7 @@ def _worker_pipeline(job_id: str, paths: dict, config: dict):
 
         save_themes_score (df_notas_theme, survey_id)
         progress_bus.put(job_id, {"event": "themes", "Temas classificados": "-"}) #check na barra de progresso
-        return True
+        
         # 4) Pré-processar campanha → df_final
 
         # Completar e-mails na df_campanha a partir do Nome e Sobrenome
