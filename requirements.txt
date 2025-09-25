@@ -5,3 +5,4 @@ gunicorn>=20.1
 pandas>=2.2
 requests
 openai
+markdown
