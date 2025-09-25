@@ -5,10 +5,13 @@ import os
 from db_config import engine
 import tempfile, uuid, threading, time
 from service.progress import progress_bus, timed_step
+import markdown
 
 from service.classification_service import (
     data_preprocessing,
-    persist_questions_and_comments
+    persist_questions_and_comments,
+    define_category_themes,
+    save_themes_score
 )
 
 from service.person_service import person_preprocessing
@@ -24,7 +27,8 @@ from service.survey_repository import (
 
 from service.areas_repository import (
     insert_areas,
-    fetch_survey_areas_with_intents
+    fetch_survey_areas_with_intents,
+    update_theme_ranking_scores
 )
 
 from service.person_repository import (
@@ -37,19 +41,21 @@ from service.areas_service import (
     create_organizational_chart,
     compute_and_update_area_metrics_python,
     generate_and_save_area_reviews,
-    generate_and_save_area_plans,
-    get_themes_intents
+    get_themes_intents,
+    comment_score_calc,
+    get_theme_ranking,
+    calculate_theme_average
 )
 
 from service.general_review import (
     generate_and_save_general_review,
-    generate_and_save_general_plan,
     get_ranking_area,
-    get_ranking_general_themes
+    get_ranking_general_themes,
+    save_general_ranking,
+    get_comment_clippings_for_critical_themes,
+    generate_action_plans,
+    get_general_action_plan
 )
-
-
-
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
@@ -113,14 +119,17 @@ def dashboard_page(page):
     survey = get_survey(survey_id)
 
     if page == "overview":
-        data = get_area_review_plan(0, survey_id)
-        area_review = data ["area_review"]
-        area_review = area_review.replace('\n', '')
-        area_review = area_review.replace('<br>', '')
-        ranking_areas = get_ranking_area(survey_id).to_dict(orient="records")
-        ranking_temas = get_ranking_general_themes(survey_id).to_dict(orient="records")
+        
+        def markdown_to_html(text):
+            if pd.isna(text):
+                return '—'
+            return markdown.markdown(text, extensions=['extra'])
 
-        return render_template("overview.html",survey=survey, data=data, area_review=area_review, ranking_areas=ranking_areas, ranking_temas=ranking_temas)
+        data = get_general_action_plan(survey_id)
+        data['action_plan'] = data['action_plan'].apply(markdown_to_html)
+        #data['action_plan'] = data['action_plan'].str.replace('\n', '<br>', regex=False)
+        data = data.to_dict(orient="records")
+        return render_template("overview.html",survey=survey, data=data)
     
     if page == "area":        
         areas = list_areas_with_non_null_score(survey_id)
@@ -141,12 +150,12 @@ def dashboard_areas_search():
 
     survey = get_survey(survey_id)
     areas = list_areas_with_non_null_score(survey_id)
-    data = get_area_review_plan(area_id=selected_area, survey_id=survey_id)  # << chama sua função
-
+    data = get_area_review_plan(area_id=selected_area, survey_id=survey_id) 
+    
     # Gráfico de temas x intenções
     themes_intents_df = get_themes_intents(area_id=selected_area, survey_id=survey_id) if selected_area else None
     themes_intents_data = themes_intents_df.to_dict(orient='records') if themes_intents_df is not None else []
-    print(themes_intents_data)
+    
     return render_template("area.html",
                            survey=survey,
                            areas=areas,
@@ -165,6 +174,7 @@ def classifica_comentarios_route():
     hierarquia_areas_file  = request.files["hierarquia_areas"]
     person_areas_file  = request.files["person_areas"]
     df_notas_areas_file  = request.files["nota_areas"]
+    df_notas_categorias_file  = request.files["nota_categorias"]
 
     try:
         # Ler CSVs
@@ -174,6 +184,7 @@ def classifica_comentarios_route():
         df_hierarquia_areas = read_csv_flex(hierarquia_areas_file)
         df_person_areas = read_csv_flex(person_areas_file)
         df_notas_areas = read_csv_flex(df_notas_areas_file)
+        df_notas_categorias = read_csv_flex(df_notas_categorias_file)
 
         # Campos da seção "Configuração"
         config = {
@@ -272,7 +283,7 @@ def classifica_comentarios_async():
     Inicia processamento em background e retorna job_id.
     Frontend deve abrir SSE em /events/<job_id>.
     """
-    required = ["campanha", "pessoas", "instancia_areas", "hierarquia_areas", "person_areas", "nota_areas"]
+    required = ["campanha", "pessoas", "instancia_areas", "hierarquia_areas", "person_areas", "nota_areas", "nota_categorias"]
     for r in required:
         if r not in request.files:
             return jsonify({"error": f"Arquivo '{r}' é obrigatório."}), 400
@@ -315,53 +326,10 @@ def _worker_pipeline(job_id: str, paths: dict, config: dict):
     """
     import traceback
     try:
-
         progress_bus.put(job_id, {"event": "info", "message": "Iniciando processamento..."})
 
         min_lvl = int(config.get("org_top") or 0)
         max_lvl = int(config.get("org_bottom") or 999)
-
-        # 1) Survey
-        def _survey():
-            name = config.get("nome_pesquisa") or f"Pesquisa {time.strftime('%Y-%m-%d %H:%M')}"
-            return insert_survey(name)
-        survey_id = timed_step(job_id, "Criar pesquisa (survey)", _survey)
-        # divulga o survey_id para o front poder montar o link de resultado
-        progress_bus.put(job_id, {"event": "survey", "survey_id": survey_id})
-
-        # 2) Leitura CSVs
-        def _read_csvs():
-            df_campanha        = read_csv_flex(paths["campanha"])
-            df_person          = read_csv_flex(paths["pessoas"])
-            df_instancia_areas = read_csv_flex(paths["instancia_areas"])
-            df_hierarquia_areas= read_csv_flex(paths["hierarquia_areas"])
-            df_person_areas    = read_csv_flex(paths["person_areas"])
-            df_notas_areas    = read_csv_flex(paths["nota_areas"])
-
-            return df_campanha, df_person, df_instancia_areas, df_hierarquia_areas, df_person_areas, df_notas_areas
-        (df_campanha, df_person, df_instancia_areas, df_hierarquia_areas, df_person_areas, df_notas_areas) = \
-            timed_step(job_id, "Ler arquivos (CSV)", _read_csvs)
-
-        # 3) Pré-processar campanha → df_final
-        df_processed = timed_step(job_id, "Normalizar respostas (df_final)", data_preprocessing,df_campanha, df_person, survey_id)
-
-        # 4) Áreas (instância + hierarquia)
-        def _areas():
-            df_areas = create_organizational_chart(df_instancia_areas, df_hierarquia_areas, survey_id)
-            return insert_areas(df_areas)
-        areas_count = timed_step(job_id, "Inserir áreas/hierarquia", _areas)
-
-        # 5) Pessoas (alocação ativa)
-        def _people():
-            df_employee = person_preprocessing(df_person, df_person_areas, survey_id)
-            return insert_person(df_employee)
-        employees_count = timed_step(job_id, "Inserir funcionários", _people)
-
-        # 6) Perguntas + Comentários
-        q_c_stats = timed_step(job_id, "Inserir questões e comentários", persist_questions_and_comments, df_processed)
-        progress_bus.put(job_id, {"event": "stats", "scope": "questions_comments", "data": q_c_stats})
-
-        # 7) Classificar Percepções
         temas = [
             "Sem tema",
             "Liderança e Gestão",
@@ -382,15 +350,160 @@ def _worker_pipeline(job_id: str, paths: dict, config: dict):
             "Abuso de autoridade",
             "Preconceito",
         ]
+
+        # Leitura CSVs
+        def _read_csvs():
+            df_campanha        = read_csv_flex(paths["campanha"])
+            df_person          = read_csv_flex(paths["pessoas"])
+            df_instancia_areas = read_csv_flex(paths["instancia_areas"])
+            df_hierarquia_areas= read_csv_flex(paths["hierarquia_areas"])
+            df_person_areas    = read_csv_flex(paths["person_areas"])
+            df_notas_areas    = read_csv_flex(paths["nota_areas"])
+            df_notas_categorias    = read_csv_flex(paths["nota_categorias"])
+
+            return df_campanha, df_person, df_instancia_areas, df_hierarquia_areas, df_person_areas, df_notas_areas, df_notas_categorias
+        
+        (df_campanha, df_person, df_instancia_areas, df_hierarquia_areas, df_person_areas, df_notas_areas, df_notas_categorias) = timed_step(job_id, "1 - lendo arquivos (csv)...", _read_csvs)
+        
+        # 1) Survey
+        def _survey():
+            name = config.get("nome_pesquisa")
+            return insert_survey(name)
+
+        survey_id = timed_step(job_id, "1 - criando pesquisa...", _survey)
+        progress_bus.put(job_id, {"event": "survey", "survey_id": survey_id}) #check na barra de progresso
+
+
+        # 2) Pessoas (alocação ativa)
+        def _people():
+            #normaliza data frame
+            df_employee = person_preprocessing(df_person, df_person_areas, survey_id)
+            #insere employees na base de dados
+            count = insert_person(df_employee)
+            return df_employee, count
+        
+        (df_employee, count_employee) = timed_step(job_id, "2 - inserindo funcionários...", _people)
+        progress_bus.put(job_id, {"event": "person", "funcionários adicionados": count_employee}) #check na barra de progresso
+
+        # 3) Áreas (instância + hierarquia)
+        def _areas():
+            # normaliza data frame e organiza hierarquia de áreas
+            df_areas = create_organizational_chart(df_instancia_areas, df_hierarquia_areas, survey_id)
+            # insere áreas na base de dados
+            count = insert_areas(df_areas)    
+            return df_areas, count
+        
+        df_areas, areas_count = timed_step(job_id, "Inserindo áreas e definindo organograma...", _areas)
+        progress_bus.put(job_id, {"event": "area", "Áreas adicionadas": areas_count}) #check na barra de progresso
+
+        # 4) Monta base de temas por área
+        def _themes():
+            df_area_category = df_notas_categorias[["categoria"]].drop_duplicates().reset_index(drop=True)
+            return define_category_themes (df_area_category, temas)
+
+        df_category_themes = timed_step(job_id, "Atribuindo Tema na área...", _themes)
+        print (df_category_themes)
+
+        df_notas_theme = df_notas_categorias.merge(
+            df_category_themes,     # DataFrame com categoria e tema
+            on="categoria",         # coluna em comum
+            how="left"              # mantém todas as linhas de df_notas_categorias
+        )
+
+        save_themes_score (df_notas_theme, survey_id)
+        progress_bus.put(job_id, {"event": "themes", "Temas classificados": "-"}) #check na barra de progresso
+        return True
+        # 4) Pré-processar campanha → df_final
+
+        # Completar e-mails na df_campanha a partir do Nome e Sobrenome
+        df_temp = pd.merge(
+            df_campanha,
+            df_person,
+            how='left',
+            left_on=['Nome', 'Sobrenome'],
+            right_on=['nome', 'sobrenome']
+        )
+
+        df_campanha['Email'] = df_campanha['Email'].where(
+            df_campanha['Email'].notna(),
+            df_temp['email']
+        )
+
+        df_processed = timed_step(job_id, "Normalizar respostas (df_final)", data_preprocessing, df_campanha, survey_id, df_employee)
+           
+        # 6) Perguntas + Comentários
+        q_c_stats = timed_step(job_id, "Inserir questões e comentários", persist_questions_and_comments, df_processed)
+        progress_bus.put(job_id, {"event": "stats", "scope": "questions_comments", "data": q_c_stats})
+
+        # 7) Classificar Percepções
         perc_stats = timed_step(job_id, "Classificar percepções", classify_and_save_perceptions, survey_id, temas, "gpt-4o", 0.0, False)
         progress_bus.put(job_id, {"event": "stats", "scope": "perceptions", "tokens_saida": "completion_tokens", "data": perc_stats})
 
+        # 8) Calcula nota dos comentários do tema
+        def _themes_by_comment():
+            
+            scores = comment_score_calc(survey_id, df_areas)
+            update_theme_ranking_scores(survey_id, scores)
+            theme_ranking = get_theme_ranking(survey_id)
+            df_ranking = calculate_theme_average (theme_ranking, survey_id)
+ 
+            # Ordena pela menor nota geral
+            df_ranking = df_ranking.sort_values(by="nota_geral", ascending=True).reset_index(drop=True)
+            df_ranking['ranking'] = range(1, len(df_ranking) + 1)
+ 
+            df_ranking = df_ranking.sort_values(by="nota_direta", ascending=True).reset_index(drop=True)
+            df_ranking['ranking_direta'] = range(1, len(df_ranking) + 1)
+
+            return df_ranking
+        
+        ranking_final = timed_step(job_id, "Calculando nota dos comentários...", _themes_by_comment)
+        save_general_ranking(ranking_final)
+
         # 8) Calcular scores de áreas (Python)
-        min_commenters = 1
+        min_commenters = 3
         areas_upd = timed_step(job_id, "Calcular o scores de áreas",compute_and_update_area_metrics_python,survey_id, df_notas_areas, min_lvl, max_lvl, min_commenters)
         progress_bus.put(job_id, {"event": "stats", "scope": "area_metrics_py", "data": {"areas_atualizadas": areas_upd}})
 
-        progress_bus.put(job_id, {"event": "info", "message": "Pipeline concluído com sucesso."})
+        # 9) Classificar perguntas fechadas da pesquisa por tema
+
+        # df_perguntas_fechadas = (
+        #     df_notas_areas[['pergunta']]
+        #     .drop_duplicates()
+        #     .reset_index(drop=True)
+        # )
+        
+        # tema_perguntas_fechadas = []
+        
+        # for pergunta in df_perguntas_fechadas['pergunta']:
+            
+        #     tema = timed_step(job_id, f"""Classificando questao: {pergunta}""", closed_question_classification, pergunta, temas_perguntas)
+        #     tema_perguntas_fechadas.append((pergunta, tema))
+        #     time.sleep(1.2)
+        #     progress_bus.put(job_id, {"event": "perguntas classificadas", "message": tema_perguntas_fechadas})
+
+        # #garante o df
+        # df_areas_perguntas_fechadas = pd.DataFrame(tema_perguntas_fechadas, columns=["pergunta", "tema"])
+
+        # df_notas_areas = df_notas_areas.merge(
+        #     df_areas_perguntas_fechadas,
+        #     on='pergunta',
+        #     how='left'
+        # )
+
+        # df_notas_areas['nota'] = pd.to_numeric(df_notas_areas['nota'])
+        
+        # df_nota_area_temas = (
+        #     df_notas_areas
+        #     .dropna(subset=['nota', 'tema'])  # Remove linhas sem nota ou sem tema
+        #     .groupby(['area_id', 'tema'], as_index=False)
+        #     .agg(media=('nota', 'mean'))  # Calcula a média
+        # )
+
+        # print (df_nota_area_temas)
+
+        # progress_bus.put(job_id, {"event": "info", "message": f"Pipeline concluído com sucesso. {df_nota_area_temas}"})
+
+        progress_bus.put(job_id, {"event": "info", "message": f"Pipeline concluído com sucesso."})
     
     except Exception as e:
         traceback.print_exc()
@@ -519,6 +632,7 @@ def _worker_area_reviews(job_id: str, survey_id: int, overwrite: bool):
                 "area_name": area_name,
                 "status": status
             })
+
         # --- (1) Gera os resumos por área (exceto área 0)
         updated = generate_and_save_area_reviews(
             survey_id=survey_id,
@@ -579,54 +693,141 @@ def _worker_plans(job_id: str, survey_id: int, overwrite: bool):
       - 'plan': {area_id, area_name, status}   (ok|indisponivel|erro}
       - 'info'/'error'/'done'
     """
+
     try:
-        progress_bus.put(job_id, {"event": "info", "message": "Iniciando geração de planos por área..."})
+        progress_bus.put(job_id, {"event": "info", "message": "Iniciando geração de planos de ação..."})
 
-        df_plan = fetch_survey_areas_with_intents(survey_id)
+        critical_themes = get_comment_clippings_for_critical_themes(survey_id)
 
-        df_plan = df_plan[
-            (df_plan["area_id"] != 0) &
-            (df_plan["area_intents"].notna()) &
-            (df_plan["area_intents"].astype(str).str.strip() != "")
-        ]
+        print (critical_themes)
 
-        if not overwrite and "action_plan" in df_plan.columns:
-            mask_empty = df_plan["action_plan"].isna() | (df_plan["action_plan"].astype(str).str.strip() == "")
-            df_plan = df_plan[mask_empty]
+        predefined_plans_json = """
+[
+  {
+    "tema": "Sem tema",
+    "acoes": "Realizar uma nova pesquisa/investigar mais a fundo quais os principais pontos de descontentamento.\nTriar os principais tópicos citados nos comentários e priorizar por frequência e gravidade.\nRodar grupos focais rápidos por áreas críticas para qualificar causas.\nConsolidar achados e encaminhar cada item para o tema responsável, com prazos e responsáveis.\nEstabelecer rotina de follow-up mensal até estabilizar indicadores."
+  },
+  {
+    "tema": "Liderança e Gestão",
+    "acoes": "Construir mini descrições de cargos (3 principais tarefas e objetivos) e alinhar com os colaboradores.\nImplementar avaliação de desempenho e feedback formal com foco em alinhamento.\nCriar roteiro e padronização de 1:1s para expectativas, papéis e resultados.\nDefinir e desdobrar metas por pessoa/time e acompanhar resultados.\nA própria pessoa propor responsabilidades e discutir com gestor quando RH não tiver disponibilidade.\nCriar um framework para desdobrar metas e objetivos individuais.\nGarantir reuniões de acompanhamento (ex.: reuniões de resultados).\nPrograma de mentoria para a liderança.\nGuideline da liderança e canal com RH/BP para dúvidas e suporte.\nTreinamentos focados em gestão de pessoas e desenvolvimento de times.\nPrograma estruturado de desenvolvimento de lideranças.\nDemissões coerentes e alinhadas com guidelines.\nLista de comportamentos esperados e alinhados à cultura para a liderança."
+  },
+  {
+    "tema": "Comunicação Interna",
+    "acoes": "Rotina de feedback contínuo entre líderes e liderados.\nComunicação transparente sobre decisões estratégicas e eventuais layoffs.\nMomentos de 'conversa franca' e Q&A com a gestão.\nMapear e divulgar os principais processos (contratação, promoção, demissão) de forma clara."
+  },
+  {
+    "tema": "Reconhecimento e Valorização",
+    "acoes": "Criar política de promoções e movimentações com critérios claros.\nComunicar e reforçar a política periodicamente.\nDivulgar promoções e justificativas de forma transparente.\nPlano de sucessão por áreas-chave.\nRelacionar promoções a critérios (desempenho, tempo de casa, impacto).\nImplementar reconhecimentos não salariais.\nAVD formal garantindo troca entre líder e liderado.\nTransparência em processos de bônus."
+  },
+  {
+    "tema": "Desenvolvimento e Carreira",
+    "acoes": "Implementar programa de mentoria por funções/áreas.\nProcesso de acompanhamento com PDI.\nGrupos de estudos/ambientes de discussão e desenvolvimento.\nInserir perguntas específicas de desenvolvimento na AVD.\nClareza sobre trilhas de carreira e caminhos de promoção interna.\nIncentivar participação em projetos interáreas.\nPolíticas de incentivo financeiro à educação (cursos/MBA/livros).\nMapear interesses de carreira em 1:1s.\nCriar programa de recrutamento interno.\nProjetos para conhecer outras funções e ampliar repertório."
+  },
+  {
+    "tema": "Cultura e Valores Organizacionais",
+    "acoes": "Disseminar valores e comportamentos em materiais e referências visuais.\nGarantir passagem dos pilares de cultura no onboarding.\nAvaliar comportamentos culturais na AVD.\nMapear aderência cultural em entradas, promoções e desligamentos.\nUsar ferramentas de fit cultural (ex.: Mindmatch) no recrutamento.\nDiagnóstico de cultura: valores mais/menos presentes e exemplos práticos.\nAssegurar cultura nos momentos do ciclo de gente (contratações, treinamentos, promoções)."
+  },
+  {
+    "tema": "Relacionamento com a equipe",
+    "acoes": "Imersões/encontros do time para fortalecer vínculos.\nRotinas de troca (dailys, reuniões de resultado, knowledge sharing).\nEnvolver o time na resolução de problemas e decisões.\nPromover brainstorming e rituais de colaboração.\nDar mais autonomia e acordos de responsabilidade.\nDefinir metas colaborativas, além das individuais.\nAproximação líder-time (onboarding com conexão pessoal/profissional)."
+  },
+  {
+    "tema": "Relacionamento entre equipes",
+    "acoes": "Rotinas de troca interáreas (reuniões de resultado conjuntas, dailys intertimes).\nProjetos interáreas com objetivos compartilhados.\nRituais de alinhamento periódico entre pares críticos (ex.: Produto x Comercial x Operações)."
+  },
+  {
+    "tema": "Ambiente e Bem-estar no Trabalho",
+    "acoes": "Investigar causas do descontentamento com o escritório (tickets abertos, incidentes, recortes por área).\nAdaptar o escritório para pessoas com necessidades especiais.\nAvaliar mudança de escritório (segurança, acesso) quando pertinente.\nOferecer transporte quando houver barreiras de acesso.\nGarantir limpeza e manutenção do espaço.\nApoio profissional (parcerias com Gympass/saúde mental).\nComunicação interna sobre bem-estar com dicas e exemplos.\nChecar uso de benefícios (saúde, exercícios) e incentivar adesão.\nAcompanhar férias e evitar acúmulo.\nGrupos de afinidade não obrigatórios (corrida, leitura, pais e mães).\nCanal seguro para reportar quaisquer problemas.\nRevisar necessidade/frequência de viagens e trabalho em fins de semana.\nAvaliar coerência de prazos e cargas."
+  },
+  {
+    "tema": "Carga de Trabalho",
+    "acoes": "Estabelecer combinados de comunicação e volume de trabalho.\nRevisar prazos e coerência de demandas com liderança.\nEstudo de dimensionamento de time/HC para reduzir sobrecarga."
+  },
+  {
+    "tema": "Remuneração e Benefícios",
+    "acoes": "Criar política de cargos e salários e comunicar amplamente.\nReforçar a política periodicamente com benchmarks de mercado.\nAdequar áreas/empresa à política quando houver desvios.\nTrabalhar Employer Branding e EVP.\nDar clareza sobre total compensation e critérios de elegibilidade.\nFortalecer benefícios (plano de saúde, Gympass etc.)."
+  },
+  {
+    "tema": "Diversidade e Inclusão e Equidade",
+    "acoes": "Política de D&I com diretrizes de linguagem e comportamento inclusivo.\nTreinamentos periódicos de vieses inconscientes e inclusão.\nRevisar descrições de vagas e processo seletivo para neutralidade e acessibilidade.\nCriar/fortalecer grupos de afinidade com patrocínio executivo.\nAuditoria de equidade salarial por recortes e plano de correção.\nGarantir acessibilidade física e digital (ferramentas e espaços).\nMetas de representatividade e acompanhamento trimestral.\nCanal seguro sem retaliação para denúncias de discriminação."
+  },
+  {
+    "tema": "Recursos, Ferramentas e Estrutura",
+    "acoes": "Caso o problema esteja em equipamentos: comprar novos equipamentos (por área ou empresa).\nVerificar se existe suporte adequado aos equipamentos e horários de atendimento.\nDefinir claramente quem é responsável por parque de máquinas, manutenção e adaptações (PCD, softwares necessários).\nMapear programas e licenças essenciais por função e garantir provisionamento.\nEstabelecer SLA de atendimento de TI e inventário de ativos.\nTreinamentos rápidos sobre ferramentas essenciais e boas práticas.\nProcesso de request/approval para novos recursos com critérios claros."
+  },
+  {
+    "tema": "Engajamento e Motivação",
+    "acoes": "Transparência da liderança sobre decisões e contexto do negócio.\nExplicar papéis e impacto de cada colaborador no resultado.\nDar espaço real para opinião e participação em decisões.\nInstituir Q&A aberto recorrente.\nConectar metas da empresa às responsabilidades individuais.\nCriar identidade/time branding para fortalecer pertencimento.\nRodar pesquisas para entender satisfação e intenção de ficar e agir sobre resultados."
+  },
+  {
+    "tema": "Autonomia e Tomada de Decisão",
+    "acoes": "Acordos de autonomia por nível de senioridade.\nDelegação progressiva com acompanhamento via 1:1 e rituais de revisão.\nEstimular resolução direta entre pares antes de escalar.\nDefinir limites de decisão e critérios de escalonamento."
+  },
+  {
+    "tema": "Assédio",
+    "acoes": "Política explícita de tolerância zero ao assédio (sexual, moral), com exemplos práticos.\nTreinamento obrigatório anual de prevenção e identificação de assédio.\nCanais confidenciais e multilinha (incluindo ombudsman externo) para denúncia.\nProcesso padronizado e célere de apuração, com prazos e responsáveis.\nProteção contra retaliação e suporte às pessoas envolvidas.\nComunicação de medidas disciplinares (preservando identidades) para reforço cultural.\nMonitoramento por pesquisas pulse e acompanhamento de indicadores."
+  },
+  {
+    "tema": "Abuso de autoridade",
+    "acoes": "Definir claramente condutas que caracterizam abuso de autoridade.\nImplementar 360° para líderes com leitura por RH e plano de ação obrigatório.\nMatriz de escalonamento e governança para conflitos líder-liderado.\nTreinamento para liderança sobre limites de poder e conduta ética.\nAuditoria periódica de decisões críticas (promoções, alocações, punições) por RH.\nSanções progressivas e coerentes previstas em guideline."
+  },
+  {
+    "tema": "Preconceito",
+    "acoes": "Política antidiscriminatória com exemplos e consequências claras.\nTreinamento recorrente de vieses, linguagem inclusiva e bystander intervention.\nProcesso de denúncia seguro e confidencial, com não retaliação.\nRevisar pipeline de recrutamento e promoção para reduzir vieses.\nComunicação ativa de casos de aprendizado (sem expor pessoas) e compromissos.\nMétricas de incidentes e acompanhamento de correções."
+  }
+]
+"""
 
-        progress_bus.put(job_id, {"event": "info", "message": f"Áreas a processar: {len(df_plan)}"})
+        action_plans, plan_review = generate_action_plans(critical_themes, predefined_plans_json, survey_id)
 
-        # Callback por área
-        def on_progress(area_id: int, area_name: str, status: str, message: str = None):
-            payload = {
-                "event": "plan",
-                "area_id": area_id,
-                "area_name": area_name,
-                "status": status
-            }
-            if message:
-                payload["message"] = message
-            progress_bus.put(job_id, payload)
+        print(plan_review)
+        print(action_plans.to_string())
+
+        #df_plan = fetch_survey_areas_with_intents(survey_id)
+
+        # df_plan = df_plan[
+        #     (df_plan["area_id"] != 0) &
+        #     (df_plan["area_intents"].notna()) &
+        #     (df_plan["area_intents"].astype(str).str.strip() != "")
+        # ]
+
+        # if not overwrite and "action_plan" in df_plan.columns:
+        #     mask_empty = df_plan["action_plan"].isna() | (df_plan["action_plan"].astype(str).str.strip() == "")
+        #     df_plan = df_plan[mask_empty]
+
+        # progress_bus.put(job_id, {"event": "info", "message": f"Áreas a processar: {len(df_plan)}"})
+
+        # # Callback por área
+        # def on_progress(area_id: int, area_name: str, status: str, message: str = None):
+        #     payload = {
+        #         "event": "plan",
+        #         "area_id": area_id,
+        #         "area_name": area_name,
+        #         "status": status
+        #     }
+        #     if message:
+        #         payload["message"] = message
+        #     progress_bus.put(job_id, payload)
 
         
-        # Gera os planos de ação por área
-        updated = generate_and_save_area_plans(
-            survey_id=survey_id,
-            model="gpt-4o",
-            temperature=0.0,
-            overwrite=overwrite,
-            on_progress=on_progress,
-        )
+        # # Gera os planos de ação por área
+        # updated = generate_and_save_area_plans(
+        #     survey_id=survey_id,
+        #     model="gpt-4o",
+        #     temperature=0.0,
+        #     overwrite=overwrite,
+        #     on_progress=on_progress,
+        # )
 
-        progress_bus.put(job_id, {"event": "info", "message": f"Planos atualizados: {updated}."})
+        # progress_bus.put(job_id, {"event": "info", "message": f"Planos atualizados: {updated}."})
 
-        # gerar plano geral
-        ok = generate_and_save_general_plan(
-            survey_id=survey_id,
-            model="gpt-4o",
-            temperature=0.0
-        )
-        progress_bus.put(job_id, {"event": "info", "message": f"Plano geral {'gerado' if ok else 'não disponível'}."})
+        # # gerar plano geral
+        # ok = generate_and_save_general_plan(
+        #     survey_id=survey_id,
+        #     model="gpt-4o",
+        #     temperature=0.0
+        # )
+        # progress_bus.put(job_id, {"event": "info", "message": f"Plano geral {'gerado' if ok else 'não disponível'}."})
 
     except Exception as e:
         progress_bus.put(job_id, {"event": "error", "message": str(e)})

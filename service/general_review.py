@@ -269,49 +269,62 @@ def generate_and_save_general_review(
     Gera o resumo da área geral (area_id = 0) com base exclusivamente no campo area_intents.
     Retorna o texto gerado (str) ou False se a área 0 não existir / não tiver dados.
     """
-    SQL_SELECT_INTENTS = """
-        SELECT area_intents
+    SQL_SELECT_REVIEWS = """
+        SELECT area_name, area_review, area_intents
         FROM area
-        WHERE area_survey_id = :sid AND area_id = 0
+        WHERE area_survey_id = :sid AND area_parent = 0
     """
     SQL_UPDATE_REVIEW = """
         UPDATE area
         SET area_review = :rev
         WHERE area_survey_id = :sid AND area_id = 0
     """
-
-    # Busca o valor da primeira (e única) coluna
+    
+    #Busca áreas filhas da área Geral e adiciona em um dicionário
     with engine.begin() as conn:
-        area_intents_value = conn.execute(
-            text(SQL_SELECT_INTENTS), {"sid": survey_id}
-        ).scalar_one_or_none()
+        df = pd.read_sql(text(SQL_SELECT_REVIEWS), conn, params={"sid": survey_id})
 
-    # Sem área 0 ou sem JSON válido
-    if area_intents_value is None:
-        return False
-
-    # Normaliza para string JSON bonita
-    if isinstance(area_intents_value, dict):
-        intents_json_str = json.dumps(area_intents_value, ensure_ascii=False, indent=2)
-    elif isinstance(area_intents_value, (str, bytes)):
-        if isinstance(area_intents_value, bytes):
-            area_intents_value = area_intents_value.decode("utf-8", errors="ignore")
-        area_intents_value = area_intents_value.strip()
-        if not area_intents_value:
-            return False
+    # 2. Filtrar e sobrescrever area_intents com apenas as chaves desejadas
+    def clean_intents(raw_json):
         try:
-            parsed = json.loads(area_intents_value)
-            intents_json_str = json.dumps(parsed, ensure_ascii=False, indent=2)
-        except json.JSONDecodeError:
-            # Se vier string já “formatada”/não-JSON, usa como está
-            intents_json_str = area_intents_value
-    else:
-        return False
+            intents = json.loads(raw_json)
+        except (TypeError, json.JSONDecodeError):
+            return {}
 
-    if max_chars and len(intents_json_str) > max_chars:
-        intents_json_str = intents_json_str[:max_chars]
+        return {
+            "metricas": intents.get("metricas", {}),
+            "ranking_temas_criticados": intents.get("ranking_temas_criticados", []),
+            "ranking_temas_reconhecidos": intents.get("ranking_temas_reconhecidos", [])
+        }
 
-    prompt = _build_general_review_prompt(intents_json_str)
+    df["area_intents"] = df["area_intents"].apply(clean_intents)
+
+    blocos = []
+    for _, row in df.iterrows():
+        area_name = row["area_name"]
+        area_review = (row["area_review"] or "").strip()
+        area_intents = json.dumps(row["area_intents"], ensure_ascii=False, indent=2)
+
+        bloco = (
+            f"#Resumo {area_name}:\n"
+            f"métricas da área: {area_intents}\n"
+            f"texto do resumo: {area_review}\n---"
+        )
+        blocos.append(bloco)
+
+    # 4. Consolidar tudo
+    area_reviews_text = "\n".join(blocos)
+
+    # Adiciona resumos das áreas filhas no JSON da área geral
+    # try:
+    #     intents_dict = json.loads(intents_json_str)
+    # except json.JSONDecodeError:
+    #     return False
+    
+    # intents_dict["resumo_areas"] = area_reviews_dict
+    # intents_json_str = json.dumps(intents_dict, ensure_ascii=False, indent=2)
+
+    prompt = _build_general_review_prompt(area_reviews_text)
 
     client = get_openai_client()
     resp = client.chat.completions.create(
@@ -321,22 +334,74 @@ def generate_and_save_general_review(
     )
     content = resp.choices[0].message.content.strip()
 
+    prompt_ajust = _build_general_ajust_review_prompt(content)
+    resp = client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": prompt_ajust}],
+        temperature=temperature,
+    )
+    content_ajust = resp.choices[0].message.content.strip()   
+
     with engine.begin() as conn:
-        conn.execute(text(SQL_UPDATE_REVIEW), {"sid": survey_id, "rev": content})
+        conn.execute(text(SQL_UPDATE_REVIEW), {"sid": survey_id, "rev": content_ajust})
 
-    return content
+    return content_ajust
 
-REVIEW_EXAMPLE = f"""
+def _build_general_review_prompt(area_reviews_text):
+
+    REVIEW_EXAMPLE = f"""
+Na análise geral, podemos perceber uma maior insatisfação referente à Carga de Trabalho e Comunicação Interna, com relatos e sugestões de melhorias sobre pressão por resultados e comunicação descentralizada. 
+E as áreas que demandam mais atenção são área x, y e z. Por outro lado, percebse reconhecimento referente à Cultura.
+
+Oportunidades:
+Percepções negativas sobre a liderança, incluindo falta de preparo para lidar com problemas difíceis e contradições.
+Percepção de Carga de trabalho excessiva e metas desconectadas da realidade.
+Percepção de benefício alimentação abaixo do mercado.
+
+Destaques:
+Percepção de pertencimento e orgulho pela cultura da empresa e identificação com os produtos e as pessoas.
+Percepção positiva sobre a colaboração entre colegas de trabalho.
+Novo escritório percebido como algo que motivou os colaboradores.
+"""
+
+    return f"""
+Você é um especialista em pesquisa de clima organizacional.
+Seu objetivo é criar um resumo executivo com oportunidades de melhoria e pontos de reconhecimento, a partir da análise prévia de cada área da empresa.
+
+Crie o resumo:
+- Criar um resumo executivo, enxuto, a partir do resumo das áreas da empresa listados abaixo.
+- Evidencie as áreas da empresa com menor satisfação e engajamento, ou seja, aquelas com menor score_area. Não cite o termo "score_area" no resumo.
+- Apresente até 3 *oportunidades de melhoria* com base nas oportunidades mais cidatas.
+- Apresente até 3 *reconhecimentos* com base nos reconhecimentos mas citados.
+- Apresentar as oportunidades e reconhecimentos em formato de bulet point, onde cada linha deve representar uma oportunidade de melhoria ou reconhecimento.
+- Evitar dar sugestões de solução, foque em trazer o que pode ser melhorado.
+
+O output deve ter o seguinte formato:
+
+<Análise enxuta dos dados>
+Oportunidades:<lista das oportunidades de melhoria>
+Destaques: <lista dos pontos de reconhecimentos>
+
+RESUMO DAS ÁRES DA EMPRESA:
+{area_reviews_text}
+
+Exemplo de Resposta:
+{REVIEW_EXAMPLE}
+"""
+
+def _build_general_ajust_review_prompt(general_review):
+
+    REVIEW_EXAMPLE = f"""
 <div class="show_review">
-<div><p>Os temas que demosntram maior insatisfação são Liderança e Gestão, Carga de Trabalho e Cultura e Valores Organizacionais, com relatos recorrentes 
-sobre distanciamento da liderança, pressão por resultados e desalinhamento cultural.</p>
+<div><p>Na análise geral, podemos perceber uma maior insatisfação referente à Carga de Trabalho e Comunicação Interna, com relatos e sugestões de melhorias sobre pressão por resultados e comunicação descentralizada. 
+E as áreas que demandam mais atenção são área x, y e z. Por outro lado, percebse reconhecimento referente à Cultura.</p>
 </div>
 
 <div class='review_item'>Oportunidades:</div>
 <div>
 <ul>
-<li>Percepções negativas sobre a liderança, incluindo falta de preparo, contradições, cobrança excessiva e ausência de apoio.</li>
-<li>Carga de trabalho considerada excessiva e metas desconectadas do contexto da área.</li>
+<li>Percepções negativas sobre a liderança, incluindo falta de preparo para lidar com problemas difíceis e contradições.</li>
+<li>Percepção de Carga de trabalho excessiva e metas desconectadas da realidade.</li>
 <li>Percepção de benefício alimentação abaixo do mercado.</li>
 </ul>
 </div>
@@ -344,32 +409,24 @@ sobre distanciamento da liderança, pressão por resultados e desalinhamento cul
 <div class='review_item'>Destaques:</p>
 <divp>
 <ul>
-<li>Orgulho pela cultura da empresa e identificação com o produto e as pessoas.</li>
-<li>Colaboração entre colegas e ambiente de equipe coeso.</li>
+<li>Percepção de pertencimento e orgulho pela cultura da empresa e identificação com os produtos e as pessoas.</li>
+<li>Percepção positiva sobre a colaboração entre colegas de trabalho.</li>
 </ul>
 </div>
-</div>
-"""
-
-def _build_general_review_prompt(json_geral: dict | str) -> str:
-    if not isinstance(json_geral, str):
-        json_geral = json.dumps(json_geral, ensure_ascii=False, indent=2)
+</div>"""
 
     return f"""
-Você é um especialista em análise de dados quantitativos de pesquisa de engajamento. Sua tarefa é analisar dados estruturados em JSON que representam o resultado de todas as áreas da classificação de comentários de uma pesquisa de clima organizacional. 
+#Objetivo    
+Refinar, Normalizar e aprimorar o resumo geral da empresa.
 
-Seu objetivo é gerar um resumo executivo geral da empresa com base nos dados (Json) fornecidos das principais áreas da empresa.
+Resumo geral:
+{general_review}
 
-O resumo deve:
-- Analisar os comentários dos funcionários das principais áreas e sugerir *oportunidades de melhoria* (comentários de críticas e sugestões) e *destaques* (comentários de reconhecimentos). 
-- Apresentar as sugestões em formato de bulet point, onde cada linha deve representar uma oportunidade de melhoria ou reconhecimento.
-- Concentrar as oportunidades de melhoria e reconhecimento em até 3 bulet points. Se fizer sentido, resuma 2 ou mais bulet points em apenas 1.
-- Utilizar as palavras mais encontradas nos recortes.
-- Ser técnico. É um resumo geral que será apresentado para o CEO.
-- Não dividir o resumo por áreas e não citar o nome das áreas.
-- Utilizar uma linguagem objetiva e não alarmante. Evite termos como 'muito', 'fortemente', 'extremamente', 'severa' e 'urgente'.
-- Evite repetir dados. Concentre-se na interpretação dos resumos das áreas e suas implicações práticas.
-- Não de sugestões de solução, foque no problema.
+#Gere um novo resumo a partir dessas instruções:
+- Remova incoerências e contradições entre oportunidades e reconhecimentos.
+-- por exemplo: Evite dizer que "a liderança enfrenta críticas por falta de apoio" em oportunidades e "A liderança é reconhecida por sua capacidade de gestão e apoio" em reconhecimentos.
+-- outro exemplo: Citar temas críticos na análise que não estão no ranking de temas críticos.
+- Elimine termos sensasionalistas como: 'muito', 'fortemente', 'extremamente', 'severa', 'incrível', 'urgente'... e troque por termos mais neutros.
 
 O output deve ser em html e ter o seguinte formato:
 <div id="show_review">
@@ -379,9 +436,6 @@ O output deve ser em html e ter o seguinte formato:
 </div>
 
 Não utilize cercas Markdown de início/fim no output. Ex: ```html ... ```
-
-Dados de entrada, estruturados em JSON, que representam a percepção de todos os colaboradores da empresa encontradas nos comentários da pesquisa de clima organizacional:
-{json_geral}
 
 Exemplo de Resposta:
 {REVIEW_EXAMPLE}
@@ -402,7 +456,7 @@ def generate_general_area_review(
     if not s or str(s).strip() in ("", "{}", "[]"):
         # nada para resumir
         return False
-
+    
     # se não for overwrite e já existir review, não gera
     if not overwrite:
         from sqlalchemy import text
@@ -431,7 +485,7 @@ def generate_general_area_review(
         return True
     except Exception as e:
         update_area_review(survey_id, 0, f"[ERRO AO GERAR RESUMO GERAL: {e}]")
-        return False
+        return False    
     
 def generate_and_save_general_plan(
     survey_id: int,
@@ -611,7 +665,8 @@ def get_ranking_area(survey_id: int) -> pd.DataFrame:
                 WHERE area_survey_id = :sid
                 AND area_score IS NOT NULL
                 AND area_id != 0
-                ORDER BY area_score
+                ORDER BY area_score ASC
+                LIMIT 3 
             """),
             conn,
             params={"sid": survey_id}
@@ -655,9 +710,279 @@ def get_ranking_general_themes(survey_id: int) -> pd.DataFrame:
                   AND perception_intension IN ('Crítica', 'Sugestão')
                 GROUP BY perception_theme
                 ORDER BY score DESC
+                 LIMIT 3
             """),
             conn,
             params={"sid": survey_id}
         )
     
     return df
+
+def save_general_ranking(ranking):
+
+    df_to_insert = ranking[[
+        "theme_name",
+        "nota_geral",
+        "nota_direta",
+        "survey_id",
+        "ranking",
+        "ranking_direta"
+    ]].rename(columns={
+        "theme_name": "theme_name",
+        "nota_geral": "score",
+        "nota_direta": "direct_score",
+        "survey_id" : "survey_id",
+        "ranking":"ranking",
+        "ranking_direta": "direct_ranking" 
+    })
+
+    df_to_insert["area_id"] = 0
+    df_to_insert = df_to_insert.where(pd.notnull(df_to_insert), None)
+    rows: List[dict] = df_to_insert.to_dict(orient="records")
+
+    sql = text("""
+        INSERT INTO theme_ranking (
+            theme_name, score, direct_score, survey_id, ranking, direct_ranking, area_id
+        ) VALUES (
+            :theme_name, :score, :direct_score, :survey_id, :ranking, :direct_ranking, :area_id
+        )
+    """)
+
+    with engine.begin() as conn:
+        conn.execute(sql, rows)
+
+def get_critical_theme_ranking(survey_id):
+    """
+
+    """
+    with engine.begin() as conn:
+        df = pd.read_sql(
+            text("""
+                SELECT
+                    *
+                FROM theme_ranking
+                WHERE survey_id = :sid
+                  AND area_id = 0
+                ORDER BY ranking
+                LIMIT 3 
+            """),
+            conn,
+            params={"sid": survey_id}
+        )
+  
+    return df
+
+
+def get_general_action_plan(survey_id):
+    """
+
+    """
+    with engine.begin() as conn:
+        df = pd.read_sql(
+            text("""
+                SELECT
+                    *
+                FROM action_plan
+                WHERE action_plan_survey_id = :sid
+                  ORDER BY id 
+            """),
+            conn,
+            params={"sid": survey_id}
+        )
+    
+    return df
+    
+def get_comment_clippings_for_critical_themes(survey_id):
+    """
+    Retorna um DataFrame com os 3 temas mais críticos e os respectivos recortes de comentários (texto + intenção).
+    """
+    # Passo 1: obter os 3 temas mais críticos
+    critical_themes_df = get_critical_theme_ranking(survey_id)
+    critical_theme_names = tuple(critical_themes_df["theme_name"].tolist())
+    print (critical_theme_names)
+
+    # Passo 2: buscar os comentários relacionados aos temas críticos
+    with engine.begin() as conn:
+        comments_df = pd.read_sql(
+            text("""
+                SELECT
+                    perception_theme,
+                    perception_comment_clipping,
+                    perception_intension
+                FROM perception
+                WHERE perception_survey_id = :sid
+                  AND perception_theme IN :themes
+            """),
+            conn,
+            params={
+                "sid": survey_id,
+                "themes": critical_theme_names
+            }
+        )
+
+    # Passo 3: organizar os recortes por tema
+    grouped = comments_df.groupby("perception_theme").apply(
+        lambda g: [
+            {
+                "comment": row["perception_comment_clipping"],
+                "intension": row["perception_intension"]
+            } for _, row in g.iterrows()
+        ]
+    ).reset_index(name="recortes")
+
+    # Passo 4: combinar com o ranking
+    final_df = pd.merge(
+        critical_themes_df,
+        grouped,
+        how="left",
+        left_on="theme_name",
+        right_on="perception_theme"
+    ).drop(columns=["perception_theme"])
+
+    return final_df
+
+def _build_prompt_for_theme(theme_name, recortes, predefined_plans_json):
+    """
+    Gera o prompt para um tema específico com base nos recortes e planos pré-definidos.
+    """
+    prompt = f"""
+#Objetivo
+Você é um especialista em gestão organizacional e o seu objetivo é sugerir um plano de ação para a gestão de RH da empresa.
+
+Abaixo estão informações coletadas de uma pesquisa de clima sobre o tema "{theme_name}", que está entre os mais críticos na organização.
+
+### Contexto da empresa: 
+A Mindsight é uma startup que produz soluções tecnológicas para o mercado de RH com foco em gestão de talentos. Em resumo, é uma empresa que trabalha 100% em home office, com colaboradores espalhados por todo o Brasil, e oferece espaço físico em São Paulo para quem quiser trabalhar de lá. 
+A empresa possui um base científica forte e tem os seguintes valores como pilares: Responsabilidade compartilhada, Empreendedorismo, Autonomia, Flexibilidade e Autenticidade.
+
+### Comentários dos colaboradores:
+Estes são os recortes dos comentários associados a este tema. Cada recorte contém o comentário e sua intenção percebida (reconhecimento, sugestão, crítica ou neutra):
+
+{json.dumps(recortes, indent=2, ensure_ascii=False)}
+
+### Planos de ação disponíveis:
+Você deve sugerir um ou mais planos de ação a partir desta lista, adaptando se necessário. Use esta base como referência metodológica:
+
+{predefined_plans_json}
+
+### Instruções:
+- Analise os comentários para identificar os problemas mais citados ou mais críticos. 
+- Escolha as ações mais adequados da lista de planos disponíveis para criar o plano de ação. 
+- O plano de ação deve ser somente uma lista de ações lógicas e conectadas com o contexto da empresa. 
+- Personalize os planos sugeridos conforme os comentários.
+
+Retorne no formato markdown apenas um nome para o plano, a lista de ações do plano e uma justificativa, sem repetir comentários.
+
+Exemplo de output:
+### Plano de Ação sugerido para **Melhoria da Comunicação Interna na Mindsight**
+- **Rotina de Feedback Contínuo**: Estabelecer uma rotina de feedback contínuo entre líderes e liderados para garantir que as opiniões dos colaboradores sejam ouvidas e consideradas nas decisões.   
+- **Comunicação Transparente**: Implementar uma comunicação transparente sobre decisões estratégicas e mudanças organizacionais, garantindo que todos os colaboradores estejam cientes das direções e estratégias da empresa.
+- **Canais de Comunicação Dedicados**: Criar canais de comunicação dedicados para anúncios importantes, separando-os de outras mensagens para evitar que informações cruciais se percam.
+- **Momentos de 'Conversa Franca' e Q&A**: Organizar sessões regulares de 'conversa franca' e Q&A com a gestão para discutir abertamente as preocupações dos colaboradores e esclarecer dúvidas sobre estratégias e decisões.
+- **Mapeamento e Divulgação de Processos**: Mapear e divulgar claramente os principais processos internos, como contratação, promoção e demissão, para aumentar a transparência e a compreensão entre os colaboradores.
+    """
+
+    return prompt.strip()
+
+def generate_action_plans(critical_df, predefined_plans_json, survey_id):
+    """
+    Para cada tema crítico no DataFrame, gera um plano de ação baseado nos comentários e planos disponíveis.
+    """
+    client = get_openai_client()
+    model = "gpt-4o"
+    temperature = 0.0
+
+    action_plan_results = []
+
+    predefined_plans = json.loads(predefined_plans_json)
+
+    for _, row in critical_df.iterrows():
+        theme_name = row["theme_name"]
+        ranking = row["ranking"]
+        recortes = row["recortes"]
+
+        plano_tema = next((item for item in predefined_plans if item["tema"] == theme_name), None)
+
+        prompt = _build_prompt_for_theme(
+            theme_name=theme_name,
+            recortes=recortes,
+            plano_tema=plano_tema
+        )
+
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=temperature,
+            )
+            content = response.choices[0].message.content.strip()
+
+            action_plan_results.append({
+                "theme_name": theme_name,
+                "ranking": ranking,
+                "generated_action_plan": content
+            })
+
+            insert_action_plan(theme_name, content, survey_id, type = 1)
+
+        except Exception as e:
+            action_plan_results.append({
+                "theme_name": theme_name,
+                "ranking": ranking,
+                "generated_action_plan": f"Erro ao gerar plano: {str(e)}"
+            })
+
+    #Cria resumo dos planos de ação
+    overview_prompt =  f"""
+Você é um especialista em clima organizacional e precisa criar um resumo dos planos de ação definidos para o RH da empresa
+
+### Contexto da empresa: 
+A Mindsight é uma startup que produz soluções tecnológicas para o mercado de RH com foco em gestão de talentos. Em resumo, é uma empresa que trabalha 100% em home office, com colaboradores espalhados por todo o Brasil, e oferece espaço físico em São Paulo para quem quiser trabalhar de lá. 
+A empresa possui um base científica forte e tem os seguintes valores como pilares: Responsabilidade compartilhada, Empreendedorismo, Autonomia, Flexibilidade e Autenticidade.
+
+### Instruções:
+- Avalie e resuma os planos de ação definidos abaixo
+- Os planos de ação abaixo estão relacionados aos temas mais críticos encontrados na pesquisa.
+- Considere que os planos de ação foram gerados com base nas notas e nos comentários da pesquisa
+- Seja objetivo, evite textos muito longos.
+
+### Planos de ação:
+{action_plan_results}
+    """
+
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": overview_prompt}],
+            temperature=temperature,
+        )
+        plan_review = response.choices[0].message.content.strip()
+        insert_action_plan("Geral", plan_review, survey_id, type = 0)
+    except Exception as e:
+        return e
+
+
+    return pd.DataFrame(action_plan_results), plan_review
+
+def insert_action_plan(theme_name, content, survey_id, type):
+    """
+
+    """
+    sql = text("""
+        INSERT INTO action_plan (
+            theme_name, action_plan, action_plan_survey_id, tipo
+        ) VALUES (
+            :theme_name, :content, :survey_id, :type
+        )
+    """)
+
+    row = {
+        "theme_name": theme_name,
+        "content": content,
+        "survey_id": survey_id,
+        "type": type
+    }
+
+    with engine.begin() as conn:
+        conn.execute(sql, row)
+

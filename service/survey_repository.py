@@ -110,22 +110,19 @@ def get_comments_with_perceptions(survey_id: int):
 
 
 def list_areas_with_non_null_score(survey_id: int) -> list[int]:
-
+ 
     sql = text("""
-        SELECT DISTINCT a.area_id AS area_id, a.area_name AS area_name
-        FROM comment  c
-        JOIN employee e ON e.employee_id    = c.comment_employee_id
-        JOIN area     a ON a.area_id        = e.employee_area_id
-        WHERE e.employee_survey_id = :sid
-          AND a.area_score IS NOT NULL
-        ORDER BY a.area_name
+        SELECT area_id, area_name 
+        FROM area
+        WHERE area_survey_id = :sid
+        AND area_score IS NOT NULL
+        AND area_id <> 0
+        ORDER BY area_name
     """)
     with engine.begin() as conn:
         rows = conn.execute(sql, {"sid": survey_id}).mappings().all()
 
     return [{"area_id": int(r["area_id"]), "area_name": (r["area_name"])} for r in rows]
-
-
 
 def list_perception_themes_for_survey(survey_id: int) -> list[str]:
 
@@ -149,7 +146,9 @@ def get_area_review_plan(area_id: int, survey_id: int):
         SELECT 
             area_survey_id,
             area_review,
-            area_plan
+            area_plan,
+            area_comments_number,
+            area_employee_number
         FROM area
         WHERE area_id = :aid AND area_survey_id = :sid
         LIMIT 1

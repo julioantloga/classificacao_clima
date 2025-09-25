@@ -157,6 +157,7 @@ def classify_and_save_perceptions(
     completion_tokens_list = []  
 
     for email, items in grouped.items():
+               
         if not items:
             skipped += 1
             continue
@@ -170,8 +171,7 @@ def classify_and_save_perceptions(
             messages=[
                 {"role": "system", "content": prompt_system},
                 {"role": "user", "content": prompt_user},
-            ],
-            max_tokens=1000
+            ]
         )
         content = resp.choices[0].message.content
         

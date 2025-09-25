@@ -82,7 +82,7 @@
       background: #f0f0f0;
       font-size: 16px;
       line-height: 1.5;
-      margin-bottom: 0;
+      margin-bottom: 20px;
     }
 
     .content-box p {
@@ -95,6 +95,34 @@
       margin-top: 6px;
     }
 
+
+    .content-box-plan {
+      padding: 12px;
+      border-radius: 4px;
+      background: #f0f0f0;
+      font-size: 16px;
+      line-height: 1.5;
+      margin: 20px;
+    }
+
+    .content-box-plan p {
+      font-size: 14px;
+      margin: 0 0 10px 0;
+    }
+
+    .content-box-plan h3 {
+      font-size: 18px;
+      font-weight: bold;
+      line-height: 20px;
+      margin: 12px 0 12px 0;
+    }
+
+    .content-box-plan h4 {
+      font-size: 16px;
+      line-height: 20px;
+      margin: 12px 0 12px 0;
+    }
+ 
     .dashboard-tab-wrapper {
       margin-top: 24px;
       border: 1px solid #ddd;
@@ -366,14 +394,29 @@
             <div class="file-section">
               <div class="file-field input-field">
                 <div class="btn btn-block">
-                  <span>Notas - FRONT Full (CSV)</span>
+                  <span>NOTA DAS ÁREAS - FRONT Full (CSV)</span>
                   <input type="file" id="nota_areas" name="nota_areas" accept=".csv" required>
                 </div>
                 <div class="file-path-wrapper">
                   <input class="file-path validate" type="text" placeholder="Nenhum arquivo selecionado">
                 </div>
               </div>
-              <p class="helper">Arquivo exportado todas as perguntas e suas notas: extraído do front da pesquisa no full. Equipe > Pesquisas > Resultados "Baixar resultado das perguntas por área".</p>
+              <p class="helper">Arquivo com as notas das perguntas por área: extraído do front da pesquisa no full. Equipe > Pesquisas > Resultados "Baixar resultado das perguntas por área".</p>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="file-section">
+              <div class="file-field input-field">
+                <div class="btn btn-block">
+                  <span>NOTA DAS CATEGORIAS - FRONT Full (CSV)</span>
+                  <input type="file" id="nota_categorias" name="nota_categorias" accept=".csv" required>
+                </div>
+                <div class="file-path-wrapper">
+                  <input class="file-path validate" type="text" placeholder="Nenhum arquivo selecionado">
+                </div>
+              </div>
+              <p class="helper">Arquivo com as notas das categorias por área: extraído do front da pesquisa no full. Equipe > Pesquisas > Resultados "Baixar resultado das categorias por área".</p>
             </div>
 
             <div class="divider"></div>
@@ -551,14 +594,27 @@
         });
 
         const temas = Object.keys(groupedData);
-        const intents = Array.from(allIntents);
+        const fixedOrder = ["Crítica", "Sugestão", "Reconhecimento", "Neutro"];
 
-        const traces = intents.map(intencao => ({
-          x: temas,
-          y: temas.map(tema => groupedData[tema][intencao] || 0),
-          name: intencao,
-          type: 'bar'
+        const intentColors = {
+          "Crítica": "#E74C3C",       // vermelho
+          "Sugestão": "#E67E22",      // laranja
+          "Reconhecimento": "#27AE60",// verde
+          "Neutro": "#95A5A6"         // cinza
+        };
+
+        const traces = fixedOrder
+          .filter(intencao => allIntents.has(intencao)) // apenas intenções presentes nos dados
+          .map(intencao => ({
+            x: temas,
+            y: temas.map(tema => groupedData[tema][intencao] || 0),
+            name: intencao,
+            type: 'bar',
+            marker: {
+              color: intentColors[intencao] || '#BDC3C7'
+            }
         }));
+
 
         const layout = {
         title:"Análise dos comentários:",
@@ -887,7 +943,7 @@
       pessoasInput.addEventListener('change', checkFiles);
 
       const STEPS = [
-        "Criar pesquisa (survey)",
+        "1 - lendo arquivos (csv)...",
         "Ler arquivos (CSV)",
         "Normalizar respostas (df_final)",
         "Inserir áreas/hierarquia",

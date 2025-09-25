@@ -1,0 +1,198 @@
+{
+"Sem tema": {
+    "Descrição": "Questões genéricas, vagas ou que não se encaixam claramente em nenhum dos outros temas.",
+    "Inclui exemplos de perguntas como": [
+    "Sem comentários",
+    "Prefiro não responder",
+    "Nada a declarar"
+    ],
+    "Não inclui": [
+    "Qualquer questão com conteúdo claro e classificável"
+    ]
+},
+"Liderança e Gestão": {
+    "Descrição": "Avaliações sobre comportamentos, práticas, decisões e estilo da liderança direta (gestores).",
+    "Inclui exemplos de perguntas como": [
+    "Minha liderança me escuta e considera minhas opiniões",
+    "Recebo feedbacks regulares do meu gestor",
+    "Confio nas decisões da minha liderança"
+    ],
+    "Não inclui": [
+    "Interações com colegas de equipe (ver: Relacionamento com a equipe)",
+    "Clareza sobre missão e valores (ver: Cultura)"
+    ]
+},
+"Comunicação Interna": {
+    "Descrição": "Qualidade e clareza das informações transmitidas pela empresa ou áreas.",
+    "Inclui exemplos de perguntas como": [
+    "Sou informado sobre mudanças importantes com antecedência",
+    "As decisões da empresa são bem comunicadas",
+    "Sinto falta de informações sobre o que acontece em outras áreas"
+    ],
+    "Não inclui": [
+    "Feedbacks do gestor (ver: Liderança e Gestão)"
+    ]
+},
+"Reconhecimento e Valorização": {
+    "Descrição": "Sensação de ser reconhecido, valorizado e recompensado pelo trabalho feito.",
+    "Inclui exemplos de perguntas como": [
+    "Me sinto valorizado(a) pelo meu trabalho",
+    "Recebo reconhecimento quando entrego bons resultados",
+    "O esforço da equipe é percebido pela liderança"
+    ],
+    "Não inclui": [
+    "Remuneração (ver: Remuneração e Benefícios)"
+    ]
+},
+"Desenvolvimento e Carreira": {
+    "Descrição": "Oportunidades de crescimento profissional, plano de carreira, PDI, capacitação.",
+    "Inclui exemplos de perguntas como": [
+    "Tenho oportunidades de crescimento na empresa",
+    "A empresa investe no meu desenvolvimento",
+    "Minha liderança fala comigo sobre minha carreira"
+    ],
+    "Não inclui": [
+    "Apoio emocional ou bem-estar (ver: Ambiente e Bem-estar)"
+    ]
+},
+"Cultura e Valores Organizacionais": {
+    "Descrição": "Aderência entre discurso e prática, ética, missão e valores da organização.",
+    "Inclui exemplos de perguntas como": [
+    "A empresa pratica o que prega em seus valores",
+    "Sinto que meus valores pessoais estão alinhados aos da empresa",
+    "As decisões refletem a cultura que é comunicada"
+    ],
+    "Não inclui": [
+    "Comportamento da liderança (ver: Liderança e Gestão)"
+    ]
+},
+"Relacionamento com a equipe": {
+    "Descrição": "Convívio, colaboração e apoio entre colegas do mesmo time.",
+    "Inclui exemplos de perguntas como": [
+    "Tenho boa relação com meus colegas",
+    "As pessoas da minha equipe me ajudam quando preciso",
+    "Existe espírito de equipe onde trabalho"
+    ],
+    "Não inclui": [
+    "Interação com outras áreas (ver: Relacionamento entre equipes)"
+    ]
+},
+"Relacionamento entre equipes": {
+    "Descrição": "Interação, alinhamento e colaboração entre diferentes áreas ou departamentos.",
+    "Inclui exemplos de perguntas como": [
+    "As áreas se ajudam mutuamente",
+    "A comunicação entre departamentos é eficiente",
+    "Há conflitos constantes entre áreas"
+    ],
+    "Não inclui": [
+    "Relacionamento com colegas da mesma equipe"
+    ]
+},
+"Ambiente e Bem-estar no Trabalho": {
+    "Descrição": "Equilíbrio físico, mental e psicológico. Clima, conforto e segurança.",
+    "Inclui exemplos de perguntas como": [
+    "Consigo manter meu equilíbrio emocional no trabalho",
+    "Sinto-me bem trabalhando aqui",
+    "A empresa se preocupa com o bem-estar dos colaboradores"
+    ],
+    "Não inclui": [
+    "Infraestrutura (ver: Recursos, Ferramentas e Estrutura)"
+    ]
+},
+"Carga de Trabalho": {
+    "Descrição": "Percepção sobre volume de trabalho, prazos e equilíbrio com a vida pessoal.",
+    "Inclui exemplos de perguntas como": [
+    "Tenho mais tarefas do que consigo cumprir",
+    "A carga de trabalho é desproporcional",
+    "Tenho tempo para fazer pausas durante o dia"
+    ],
+    "Não inclui": [
+    "Pressão psicológica ou assédio (ver: Assédio)"
+    ]
+},
+"Remuneração e Benefícios": {
+    "Descrição": "Avaliação sobre salário, bônus, benefícios oferecidos, planos de saúde, etc.",
+    "Inclui exemplos de perguntas como": [
+    "Sinto que sou bem remunerado pelo que entrego",
+    "Os benefícios oferecidos atendem minhas necessidades",
+    "A política de bônus é clara"
+    ],
+    "Não inclui": [
+    "Reconhecimento emocional ou simbólico (ver: Reconhecimento e Valorização)"
+    ]
+},
+"Diversidade e Inclusão e Equidade": {
+    "Descrição": "Percepção de justiça, respeito e valorização das diferenças.",
+    "Inclui exemplos de perguntas como": [
+    "A empresa valoriza a diversidade",
+    "Me sinto incluído(a) independentemente de quem eu sou",
+    "A empresa promove equidade nas oportunidades"
+    ],
+    "Não inclui": [
+    "Assédio ou preconceito explícito (ver temas específicos)"
+    ]
+},
+"Recursos, Ferramentas e Estrutura": {
+    "Descrição": "Condições físicas e tecnológicas para o trabalho: espaço, equipamentos, softwares.",
+    "Inclui exemplos de perguntas como": [
+    "Tenho as ferramentas necessárias para trabalhar bem",
+    "As instalações são adequadas",
+    "Os sistemas internos funcionam bem"
+    ],
+    "Não inclui": [
+    "Bem-estar emocional (ver: Ambiente e Bem-estar)"
+    ]
+},
+"Engajamento e Motivação": {
+    "Descrição": "Sentimento de pertencimento, entusiasmo e vontade de contribuir.",
+    "Inclui exemplos de perguntas como": [
+    "Me sinto motivado(a) a dar o meu melhor",
+    "Acredito no propósito da empresa",
+    "Tenho segurança sobre meu futuro na empresa"
+    ],
+    "Não inclui": [
+    "Perspectiva de crescimento (ver: Desenvolvimento e Carreira)"
+    ]
+},
+"Autonomia e Tomada de Decisão": {
+    "Descrição": "Liberdade para tomar decisões, confiança e protagonismo no dia a dia.",
+    "Inclui exemplos de perguntas como": [
+    "Tenho autonomia para tomar decisões no meu trabalho",
+    "Confiam em mim para resolver problemas",
+    "Posso sugerir mudanças nas rotinas"
+    ],
+    "Não inclui": [
+    "Interferência abusiva da liderança (ver: Abuso de autoridade)"
+    ]
+},
+"Assédio": {
+    "Descrição": "Situações de abuso verbal, moral ou psicológico no ambiente de trabalho.",
+    "Inclui exemplos de perguntas como": [
+    "Já fui exposto(a) a situações de constrangimento no trabalho",
+    "Sinto medo de falar algo e sofrer represálias"
+    ],
+    "Não inclui": [
+    "Excesso de trabalho ou pressão sem violência (ver: Carga de Trabalho)"
+    ]
+},
+"Abuso de autoridade": {
+    "Descrição": "Uso excessivo ou inadequado de poder por parte da liderança.",
+    "Inclui exemplos de perguntas como": [
+    "Meu gestor toma decisões sem diálogo",
+    "Há ameaças ou controle exagerado por parte da liderança"
+    ],
+    "Não inclui": [
+    "Conflitos entre colegas ou com outras áreas"
+    ]
+},
+"Preconceito": {
+    "Descrição": "Discriminação explícita ou implícita com base em raça, gênero, idade, orientação sexual etc.",
+    "Inclui exemplos de perguntas como": [
+    "Já presenciei atitudes preconceituosas na empresa",
+    "Pessoas são tratadas de forma diferente por sua aparência"
+    ],
+    "Não inclui": [
+    "Percepção geral de inclusão sem casos específicos (ver: Diversidade e Inclusão)"
+    ]
+}
+}

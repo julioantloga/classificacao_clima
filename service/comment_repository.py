@@ -35,9 +35,33 @@ def insert_comments(rows: List[dict]) -> int:
     if not rows:
         return 0
     sql = text("""
-        INSERT INTO comment (comment, comment_employee_id, comment_question_id)
-        VALUES (:comment, :comment_employee_id, :comment_question_id)
+        INSERT INTO comment (comment, comment_employee_id, comment_question_id, comment_survey_id, comment_area_id)
+        VALUES (:comment, :comment_employee_id, :comment_question_id, :comment_survey_id, :comment_area_id)
     """)
     with engine.begin() as conn:
         conn.execute(sql, rows)
+    return len(rows)
+
+#------------------------------
+# NOVO 
+#-----------------------------
+
+def insert_themes(rows: List[dict]) -> int:
+    """
+    Inicia a base de temas da pesquisa:
+    """
+    if not rows:
+        return 0
+
+    sql = text("""
+        INSERT INTO theme_ranking (
+            area_id, theme_name, score, dissatisfied_score, survey_id
+        ) VALUES (
+            :area_id, :theme_name, :score, :dissatisfied_score, :survey_id
+        )
+    """)
+
+    with engine.begin() as conn:
+        conn.execute(sql, rows)
+
     return len(rows)

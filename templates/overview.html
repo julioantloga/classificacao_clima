@@ -1,21 +1,21 @@
-{% if data and (data.area_review or data.area_plan) %}
+{% if not data.empty %}
   <div class="card z-depth-0" style="margin-bottom: 14px;">
     <div class="card-content">
 
       <div class="row" style="margin-top: 8px;">
 
-        <div class="col s12 m12">
-          <h6 class="grey-text text-darken-2" style="margin-bottom: 6px;">Resumo geral</h6>
+        <!-- <div class="col s12 m12">
+          <h6 class="grey-text text-darken-2" style="margin-bottom: 6px;">Sugestões de Planos de Ação</h6>
           <div class="content-box">
             {{ (area_review or '—') | safe }}
           </div>
-        </div>
+        </div> -->
 
         <div class="col s12 m12" style="margin-top: 20px;">
           <h6 class="grey-text text-darken-2" style="margin-bottom: 6px;">Dados gerais</h6>
         </div>
-        
-        <div class="col s12 m6" style="margin-top: 20px;">  
+
+        <!-- <div class="col s12 m12" style="margin-top: 20px;">  
           <div class="content-box table-wrap">
             <h6 class="red-text text-darken-2" style="margin-bottom: 12px;">Áreas críticas via análise de comentários</h6>
             <table class="striped responsive-table">
@@ -31,7 +31,7 @@
               <tbody>
                 {% set total = ranking_areas|length %}
                 {% for a in ranking_areas %}
-                  {% set weight = 1 - ((loop.index0) / (total - 1)) if total > 1 else 1 %}
+                  {% set weight = 1.2 - ((loop.index0) / (total - 1)) if total > 1 else 1 %}
                   {% set rgba = "rgba(255, 0, 0, {:.2f})".format(weight) %}
                   <tr style="background-color: {{ rgba }};">
                     <td>#{{ loop.index }}</td>
@@ -43,63 +43,30 @@
                 {% endfor %}
               </tbody>
             </table>
-
           </div>
-        </div>
-
-        <div class="col s12 m6" style="margin-top: 20px;">  
-          <div class="content-box table-wrap">
-            <h6 class="red-text text-darken-2" style="margin-bottom: 12px;">Áreas críticas via notas<br><br></h6>
-            <table class="striped responsive-table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Área</th>
-                  <th>%insatisfeitos</th>
-                  <th>Adesão</th>
-                  <th>Média</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% set total = ranking_areas|length %}
-                {% for a in ranking_areas %}
-                  {% set weight = 1 - ((loop.index0) / (total - 1)) if total > 1 else 1 %}
-                  {% set rgba = "rgba(255, 0, 0, {:.2f})".format(weight) %}
-                  <tr style="background-color: {{ rgba }};">
-                    <td>#{{ loop.index }}</td>
-                    <td>{{ a.area_name or '—' }}</td>
-                    <td>{{ (a.area_criticism_number or 0) + (a.area_suggestions_number or 0) }}</td>
-                    <td>{{ (a.area_response_rate * 100) | round(1) }}%</td>
-                    <td>{{ (a.area_score or 0) | round(2) }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-
-          </div>
-        </div>
+        </div> -->
 
         <div class="col s12 m12" style="margin-top: 20px;">  
           <div class="content-box table-wrap">
-            <h6 class="red-text text-darken-2" style="margin-bottom: 12px;">Temas insatisfeitos via análise de comentários</h6>
+            <h6 class="red-text text-darken-2" style="margin-bottom: 12px;">Os temas com maior necessidade de desenvolvimento são:</h6>
             <table class="striped responsive-table">
               <thead>
                 <tr>
                   <th>#</th>
                   <th>Tema</th>
-                  <th>Score</th>
                 </tr>
               </thead>
               <tbody>
-                {% set total = ranking_temas|length %}
-                {% for t in ranking_temas %}
-                  {% set weight = 1 - ((loop.index0) / (total - 1)) if total > 1 else 1 %}
+                {% set total = data|length %}
+                {% for d in data %}
+                  {% if d.tipo == 1 %}
+                  {% set weight = 1.2 - ((loop.index0) / (total - 1)) if total > 1 else 1 %}
                   {% set rgba = "rgba(255, 0, 0, {:.2f})".format(weight) %}
                   <tr style="background-color: {{ rgba }};">
                     <td>#{{ loop.index }}</td>
-                    <td>{{ t.tema or '—' }}</td>
-                    <td>{{ t.score or 0 }}</td>
+                    <td>{{ d.theme_name or '-' }}</td>
                   </tr>
+                  {% endif %}
                 {% endfor %}
               </tbody>
             </table>
@@ -107,12 +74,19 @@
           </div>
         </div>
 
+        {% if not data.empty %}
         <div class="col s12 m12" style="margin-top: 20px;">
-          <h6 class="grey-text text-darken-2" style="margin-bottom: 6px;">Plano de ação geral</h6>
-          <div class="content-box">
-            {{ (data.area_plan or '—') | safe }}
+          <h6 class="grey-text text-darken-2" style="margin-bottom: 6px;">Sugestões de Planos de Ação</h6>
+          {% for item in data %} 
+          <div class="content-box-plan col s12 m12">
+            
+              {{ item.action_plan | safe }}
+          
           </div>
+          {% endfor %}
+         
         </div>
+        {% endif %}
 
       </div>
     </div>

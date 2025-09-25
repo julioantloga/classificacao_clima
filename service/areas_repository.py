@@ -50,7 +50,7 @@ def fetch_survey_employees(survey_id: int) -> pd.DataFrame:
     with engine.begin() as conn:
         return pd.read_sql(
             text("""
-                SELECT employee_id, employee_area_id
+                SELECT employee_id, employee_area_id, employee_survey_id
                 FROM employee
                 WHERE employee_survey_id = :sid
             """),
@@ -61,7 +61,7 @@ def fetch_survey_comments(survey_id: int) -> pd.DataFrame:
     with engine.begin() as conn:
         return pd.read_sql(
             text("""
-                SELECT c.comment_id, c.comment_employee_id
+                SELECT c.comment_id, c.comment_employee_id, c.comment_area_id, c.comment_survey_id
                 FROM comment c
                 JOIN question q ON q.question_id = c.comment_question_id
                 WHERE q.question_survey_id = :sid
@@ -78,7 +78,8 @@ def fetch_survey_perceptions(survey_id: int) -> pd.DataFrame:
                     p.perception_comment_id,
                     p.perception_intension,
                     p.perception_theme,
-                    p.perception_comment_clipping
+                    p.perception_comment_clipping,
+                    p.perception_area_id
                 FROM perception p
                 JOIN comment c ON c.comment_id = p.perception_comment_id
                 JOIN question q ON q.question_id = c.comment_question_id
@@ -409,3 +410,68 @@ def save_area_plan(area_id: int, plan_text: str):
         conn.execute(text("""
             UPDATE area SET area_plan = :plan_text WHERE area_id = :aid
         """), {"plan_text": plan_text, "aid": area_id})
+
+####################
+########################
+
+def get_area_perceptions(survey_id):
+    """ 
+    """
+    with engine.begin() as conn:
+        return pd.read_sql(
+            text("""
+                SELECT *
+                FROM perception
+                WHERE perception_survey_id = :sid 
+            """),
+            conn, params={"sid": survey_id}
+        )
+
+def get_themes_score (survey_id):
+    """
+    """
+    with engine.begin() as conn:
+        return pd.read_sql(
+            text("""
+                SELECT *
+                FROM theme_ranking
+                WHERE survey_id = :sid
+            """),
+            conn, params={"sid": survey_id}
+        ) 
+       
+def update_theme_ranking_scores(survey_id, scores_by_area):
+    with engine.begin() as conn:
+        for area_id, area_scores in scores_by_area.items():
+            direct_scores = area_scores.get("direto", {})
+            total_scores = area_scores.get("total", {})
+
+            for theme_name, direct_score in direct_scores.items():
+                total_score = total_scores.get(theme_name, 0)
+
+                result = conn.execute(
+                    text("""
+                        UPDATE theme_ranking
+                        SET 
+                            direct_comment_score = :dcs,
+                            comment_score = :cs
+                        WHERE 
+                            area_id = :aid 
+                            AND survey_id = :sid 
+                            AND theme_name = :t
+                    """),
+                    {
+                        "dcs": direct_score,
+                        "cs": total_score,
+                        "aid": area_id,
+                        "sid": survey_id,
+                        "t": theme_name
+                    }
+                )
+
+                # Se nenhum registro foi atualizado, ignora e segue
+                if result.rowcount == 0:
+                    continue
+
+    return True
+

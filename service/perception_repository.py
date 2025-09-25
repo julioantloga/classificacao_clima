@@ -79,3 +79,4 @@ def delete_perceptions_for_survey(survey_id: int) -> int:
     with engine.begin() as conn:
         res = conn.execute(sql, {"sid": survey_id})
         return res.rowcount or 0
+
