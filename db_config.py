@@ -4,7 +4,7 @@ from sqlalchemy import create_engine
 #from dotenv import load_dotenv
 #load_dotenv()
 
-DATABASE_URL = os.environ.get("DATABASE_URL") #"postgresql://postgres:eFOZsAcZcJJcruKjzWFUZieWfhZMqDvV@shortline.proxy.rlwy.net:55123/railway"
+DATABASE_URL = "postgresql://postgres:eFOZsAcZcJJcruKjzWFUZieWfhZMqDvV@shortline.proxy.rlwy.net:55123/railway" #os.environ.get("DATABASE_URL")
 BASE_URL = os.environ.get("BASE_URL")
 
 # Corrige o prefixo do Heroku se necessário
