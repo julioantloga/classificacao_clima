@@ -88,7 +88,7 @@ def get_comment_perceptions_search(survey_id: int, area_id: str, intention: str,
         params["aid"] = area_id
     
     q_comments = text(q_comments)
-    print (q_comments)
+    
     # 2) Percepções para os comentários retornados
     query_str = """
         SELECT 
@@ -120,7 +120,7 @@ def get_comment_perceptions_search(survey_id: int, area_id: str, intention: str,
 
         # ids dos comentários
         comment_ids = tuple([c["comment_id"] for c in comments])
-        print (comment_ids)
+        
         # SQLAlchemy precisa de tupla para IN
         percs = conn.execute(q_perceptions, {**params, "ids": comment_ids}).mappings().all()
     
@@ -145,5 +145,5 @@ def get_comment_perceptions_search(survey_id: int, area_id: str, intention: str,
                 "question_name": c["question_name"],
                 "perceptions": perceptions
             })
-    
+
     return rows

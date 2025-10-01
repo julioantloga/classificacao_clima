@@ -96,6 +96,17 @@
   </div>
 </div>
 
+{% if themes_intents_data %}
+<div class="row" style="margin-top: 40px;">
+    <div class="col s12">
+        <div id="themes-intents-chart" style="width: 100%; height: 500px;"></div>
+    </div>
+</div>
+<script type="application/json" id="themes-intents-data">
+    {{ themes_intents_data | tojson }}
+</script>
+{% endif %}
+
 <ul class="collection">
   {% for r in rows %}
   <li class="collection-item">

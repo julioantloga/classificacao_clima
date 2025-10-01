@@ -198,6 +198,11 @@ def dashboard_comments_search():
     
     rows = get_comment_perceptions_search(survey, selected_area, selected_intention, selected_theme)
     
+    # Gráfico de temas x intenções
+    themes_intents_df = get_themes_intents(area_id=selected_area, survey_id=survey) if selected_area else None
+    themes_intents_data = themes_intents_df.to_dict(orient='records') if themes_intents_df is not None else []
+    print(themes_intents_data)
+
     return render_template("comments.html",
                            survey=survey,
                            #data=data,
@@ -206,7 +211,8 @@ def dashboard_comments_search():
                            themes=themes,
                            selected_area=selected_area,
                            selected_intention=selected_intention,
-                           selected_theme=selected_theme)
+                           selected_theme=selected_theme,
+                           themes_intents_data = themes_intents_data)
 
 
 #Descartes

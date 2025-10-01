@@ -116,7 +116,7 @@
       line-height: 26px;
       margin: 12px 0 12px 0;
     }
-    
+
     .content-box-plan h3 {
       font-size: 18px;
       font-weight: bold;
@@ -745,6 +745,18 @@
             /*.then(r => r.json())*/
             .then(html => {
               container.innerHTML = html;
+
+              // Injeta o JSON com os dados e renderiza o gráfico
+              const rawDataEl = container.querySelector('#themes-intents-data');
+              if (rawDataEl) {
+                try {
+                  window.themesIntentsData = JSON.parse(rawDataEl.textContent);
+                } catch {
+                  window.themesIntentsData = [];
+                }
+              }
+
+              renderThemesIntentsChart();S
               
               // rewire após reinjetar
               wireCommentsForm(container);
@@ -754,6 +766,8 @@
             });
         });
       }
+
+      
 
       function wireAreasForm(container) {
         // Inicializa <select> do Materialize dentro do parcial
@@ -818,6 +832,7 @@
             
             if (page === 'comments') {
               wireCommentsForm(container);
+
             } else if (window.M && M.FormSelect) {
               // caso outras abas também tenham selects
               M.FormSelect.init(container.querySelectorAll('select'));
