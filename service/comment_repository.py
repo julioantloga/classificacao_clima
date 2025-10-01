@@ -67,7 +67,7 @@ def insert_themes(rows: List[dict]) -> int:
 
     return len(rows)
 
-def get_comment_perceptions_search(survey_id: int, area_id: str, intention: str, theme: str):
+def get_comment_perceptions_search(survey_id: int, area_id: int, intention: str, theme: str):
     
     params = {"sid": survey_id}
 
@@ -83,7 +83,7 @@ def get_comment_perceptions_search(survey_id: int, area_id: str, intention: str,
         WHERE q.question_survey_id = :sid
     """
 
-    if area_id != '0':
+    if area_id != 0:
         q_comments += " AND c.comment_area_id = :aid"
         params["aid"] = area_id
     

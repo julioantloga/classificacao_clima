@@ -148,7 +148,10 @@ def dashboard_page(page):
         selected_area = 0
         selected_theme = "all"
         selected_intention = "all"
-
+        
+        themes_intents_df = get_themes_intents(area_id=selected_area, survey_id=survey_id)        
+        themes_intents_data = themes_intents_df.to_dict(orient='records') if themes_intents_df is not None else []
+        
         return render_template("comments.html",
                 survey=survey,
                 rows=rows,
@@ -156,7 +159,8 @@ def dashboard_page(page):
                 themes=themes,
                 selected_area = selected_area,
                 selected_theme = selected_theme,
-                selected_intention = selected_intention
+                selected_intention = selected_intention,
+                themes_intents_data = themes_intents_data
             )
 
 
@@ -192,20 +196,24 @@ def dashboard_comments_search():
     areas = list_areas_with_non_null_score(survey)
     themes = list_perception_themes_for_survey(survey)
     
-    selected_area = request.args.get("area", default="")
+    selected_area = request.args.get("area")
+
+    try:
+        selected_area = int(selected_area)
+    except (ValueError, TypeError):
+        selected_area = 0
+    
     selected_intention = request.args.get("intention", default="").strip()
     selected_theme = request.args.get("theme", default="").strip()
     
     rows = get_comment_perceptions_search(survey, selected_area, selected_intention, selected_theme)
-    
+
     # Gráfico de temas x intenções
-    themes_intents_df = get_themes_intents(area_id=selected_area, survey_id=survey) if selected_area else None
+    themes_intents_df = get_themes_intents(area_id=selected_area, survey_id=survey)
     themes_intents_data = themes_intents_df.to_dict(orient='records') if themes_intents_df is not None else []
-    print(themes_intents_data)
 
     return render_template("comments.html",
                            survey=survey,
-                           #data=data,
                            rows=rows,
                            areas=areas,
                            themes=themes,

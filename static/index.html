@@ -732,6 +732,7 @@
         }
 
         const form = container.querySelector('#comments-search-form');
+       
         if (!form) return;
 
         form.addEventListener('submit', function (e) {
@@ -756,7 +757,7 @@
                 }
               }
 
-              renderThemesIntentsChart();S
+              renderThemesIntentsChart();
               
               // rewire após reinjetar
               wireCommentsForm(container);
@@ -766,8 +767,6 @@
             });
         });
       }
-
-      
 
       function wireAreasForm(container) {
         // Inicializa <select> do Materialize dentro do parcial
@@ -832,6 +831,19 @@
             
             if (page === 'comments') {
               wireCommentsForm(container);
+
+              const rawDataEl = container.querySelector('#themes-intents-data');
+              if (rawDataEl) {
+                try {
+                  window.themesIntentsData = JSON.parse(rawDataEl.textContent);
+                } catch {
+                  window.themesIntentsData = [];
+                }
+              } else {
+                window.themesIntentsData = []; // fallback
+              }
+
+              renderThemesIntentsChart();
 
             } else if (window.M && M.FormSelect) {
               // caso outras abas também tenham selects

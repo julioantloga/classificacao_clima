@@ -1523,30 +1523,49 @@ def generate_and_save_area_plans(survey_id: int, model: str, temperature: float,
 # Análises
 # ============================================================
 
-def get_themes_intents(area_id: int,survey_id: int) -> pd.DataFrame:
+def get_themes_intents(area_id, survey_id: int) -> pd.DataFrame:
     """
     Retorna a quantidade de percepções (tema x intenção) para os funcionários de uma determinada área.
+    Se area_id = 0 ou None, retorna de todas as áreas.
     Args:
-        area_id (int): ID da área selecionada.
+        area_id (int): ID da área selecionada (0 ou None = todas as áreas)
+        survey_id (int): ID da pesquisa
     Returns:
         pd.DataFrame: DataFrame com colunas ['tema', 'intencao', 'qtd']
     """
-    if not area_id:
-        return pd.DataFrame(columns=["tema", "intencao", "qtd"])
+    print("Area", area_id)    
 
-    query = text("""
-        SELECT 
-            perception_theme AS tema,
-            perception_intension AS intencao,
-            COUNT(*) AS qtd
-        FROM perception
-        WHERE perception_survey_id = :survey_id AND perception_area_id = :area_id
-        GROUP BY perception_theme, perception_intension
-        ORDER BY perception_theme, perception_intension
-    """)
-
+    # Monta SQL dependendo do filtro
+    if area_id == 0:
+        # Todas as áreas
+        query = text("""
+            SELECT 
+                perception_theme AS tema,
+                perception_intension AS intencao,
+                COUNT(*) AS qtd
+            FROM perception
+            WHERE perception_survey_id = :survey_id
+            GROUP BY perception_theme, perception_intension
+            ORDER BY perception_theme, perception_intension
+        """)
+        params = {"survey_id": survey_id}
+    else:
+        # Área específica
+        query = text("""
+            SELECT 
+                perception_theme AS tema,
+                perception_intension AS intencao,
+                COUNT(*) AS qtd
+            FROM perception
+            WHERE perception_survey_id = :survey_id
+              AND perception_area_id = :area_id
+            GROUP BY perception_theme, perception_intension
+            ORDER BY perception_theme, perception_intension
+        """)
+        params = {"survey_id": survey_id, "area_id": area_id}
+    
     with engine.connect() as conn:
-        df = pd.read_sql(query, conn, params={"area_id": area_id, "survey_id": survey_id})
+        df = pd.read_sql(query, conn, params=params)
 
     return df
 
