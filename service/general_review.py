@@ -799,8 +799,7 @@ def get_comment_clippings_for_critical_themes(survey_id):
     # Passo 1: obter os 3 temas mais críticos
     critical_themes_df = get_critical_theme_ranking(survey_id)
     critical_theme_names = tuple(critical_themes_df["theme_name"].tolist())
-    print (critical_theme_names)
-
+    
     # Passo 2: buscar os comentários relacionados aos temas críticos
     with engine.begin() as conn:
         comments_df = pd.read_sql(
@@ -821,14 +820,20 @@ def get_comment_clippings_for_critical_themes(survey_id):
         )
 
     # Passo 3: organizar os recortes por tema
-    grouped = comments_df.groupby("perception_theme").apply(
-        lambda g: [
-            {
-                "comment": row["perception_comment_clipping"],
-                "intension": row["perception_intension"]
-            } for _, row in g.iterrows()
-        ]
-    ).reset_index(name="recortes")
+    grouped = (
+        comments_df.groupby("perception_theme")
+        .apply(
+            lambda g: g[["perception_comment_clipping", "perception_intension"]]
+            .rename(columns={
+                "perception_comment_clipping": "comment",
+                "perception_intension": "intension"
+            })
+            .to_dict(orient="records"),
+            include_groups=False
+        )
+        .reset_index(name="recortes")
+    )
+
 
     # Passo 4: combinar com o ranking
     final_df = pd.merge(
@@ -841,40 +846,55 @@ def get_comment_clippings_for_critical_themes(survey_id):
 
     return final_df
 
-def _build_prompt_for_theme(theme_name, recortes, predefined_plans_json):
+def _build_prompt_for_theme(theme_name, recortes, actions):
     """
     Gera o prompt para um tema específico com base nos recortes e planos pré-definidos.
     """
+
+    actions_text = ""
+    for _, row in actions.iterrows():
+        problema = row["problema"]
+        
+        lista_acoes = [acao.strip() for acao in row["acoes"].replace(";", ",").split(",")]
+        lista_acoes = [f"- {acao}" for acao in lista_acoes if acao]
+
+        bloco = f"Se o problema raíz for **{problema}**, utilize como referência as seguintes ações:\n" + "\n".join(lista_acoes) + "\n\n"
+        actions_text += bloco
+
+
     prompt = f"""
 #Objetivo
 Você é um especialista em gestão organizacional e o seu objetivo é sugerir um plano de ação para a gestão de RH da empresa.
 
 Abaixo estão informações coletadas de uma pesquisa de clima sobre o tema "{theme_name}", que está entre os mais críticos na organização.
 
-### Contexto da empresa: 
+# Contexto da empresa: 
 A Mindsight é uma startup que produz soluções tecnológicas para o mercado de RH com foco em gestão de talentos. Em resumo, é uma empresa que trabalha 100% em home office, com colaboradores espalhados por todo o Brasil, e oferece espaço físico em São Paulo para quem quiser trabalhar de lá. 
-A empresa possui um base científica forte e tem os seguintes valores como pilares: Responsabilidade compartilhada, Empreendedorismo, Autonomia, Flexibilidade e Autenticidade.
+A empresa possui um base científica forte e tem os seguintes valores como pilares: PROFUNDIDADE APLICADA, RESPONSABILIDADE COMPARTILHADA, EVOLUÇÃO CONTÍNUA, FRANQUEZA E TRANSPARÊNCIA e ATITUDE EMPREENDEDORA.
+Além da pesquisa de clima, a empresa já utiliza boas práticas para desenvolvimento de talentos como: AVD, 1:1, Fóruns de reconhecimento e treinamento de lideranças.
 
-### Comentários dos colaboradores:
+# Comentários dos colaboradores:
 Estes são os recortes dos comentários associados a este tema. Cada recorte contém o comentário e sua intenção percebida (reconhecimento, sugestão, crítica ou neutra):
 
 {json.dumps(recortes, indent=2, ensure_ascii=False)}
 
-### Planos de ação disponíveis:
-Você deve sugerir um ou mais planos de ação a partir desta lista, adaptando se necessário. Use esta base como referência metodológica:
+# Planos de ação disponíveis:
+Você deve sugerir um ou mais planos de ação a partir desta base de problemas e ações abaixo. Utilize ela como referência metodológica:
 
-{predefined_plans_json}
+{actions_text}
 
 ### Instruções:
-- Analise os comentários para identificar os problemas mais citados ou mais críticos. 
-- Escolha as ações mais adequados da lista de planos disponíveis para criar o plano de ação. 
-- O plano de ação deve ser somente uma lista de ações lógicas e conectadas com o contexto da empresa. 
-- Personalize os planos sugeridos conforme os comentários.
+- Identifique os problemas raízes a partir dos comentários, foque nos problemas com mais de uma citação.
+- Escolha as ações mais adequadas da lista de planos ação disponíveis para atender os problemas identificados.
+- O plano de ação deve ser somente uma lista de ações lógicas e conectadas com o contexto da empresa.
+- Personalize as ações e acordo com os problemas identificados nos comentários.
+- É importante garantir que os planos de ação atenda os problemas identificados.
 
 Retorne no formato markdown apenas um nome para o plano, a lista de ações do plano e uma justificativa, sem repetir comentários.
 
 Exemplo de output:
-### Plano de Ação sugerido para **Melhoria da Comunicação Interna na Mindsight**
+## **<tema>**
+### **<problema identificado>**
 - **Rotina de Feedback Contínuo**: Estabelecer uma rotina de feedback contínuo entre líderes e liderados para garantir que as opiniões dos colaboradores sejam ouvidas e consideradas nas decisões.   
 - **Comunicação Transparente**: Implementar uma comunicação transparente sobre decisões estratégicas e mudanças organizacionais, garantindo que todos os colaboradores estejam cientes das direções e estratégias da empresa.
 - **Canais de Comunicação Dedicados**: Criar canais de comunicação dedicados para anúncios importantes, separando-os de outras mensagens para evitar que informações cruciais se percam.
@@ -899,11 +919,18 @@ def generate_action_plans(critical_df, predefined_plans_json, survey_id):
         ranking = row["ranking"]
         recortes = row["recortes"]
 
+        actions = predefined_plans_json[
+            predefined_plans_json["theme_name"].isin([row["theme_name"]])
+        ]
+
+
         prompt = _build_prompt_for_theme(
             theme_name=theme_name,
             recortes=recortes,
-            predefined_plans_json=predefined_plans_json
+            actions=actions
         )
+        
+        print (prompt)
 
         try:
             response = client.chat.completions.create(
@@ -938,12 +965,27 @@ A empresa possui um base científica forte e tem os seguintes valores como pilar
 
 ### Instruções:
 - Avalie e resuma os planos de ação definidos abaixo
+- Crie um resumo textual dos planos de ação
 - Os planos de ação abaixo estão relacionados aos temas mais críticos encontrados na pesquisa.
 - Considere que os planos de ação foram gerados com base nas notas e nos comentários da pesquisa
+- Não inclua as Justificativas no output
 - Seja objetivo, evite textos muito longos.
 
 ### Planos de ação:
 {action_plan_results}
+
+Retorne no formato markdown
+
+#Exemplo de output:
+
+<resumo textual enxuto dos planos de ação>
+
+###**Plano A**:
+- ação a
+- ação b
+###**Plano B**:
+- ação a
+- ação b
     """
 
     try:

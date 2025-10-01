@@ -411,7 +411,6 @@ def save_area_plan(area_id: int, plan_text: str):
             UPDATE area SET area_plan = :plan_text WHERE area_id = :aid
         """), {"plan_text": plan_text, "aid": area_id})
 
-####################
 ########################
 
 def get_area_perceptions(survey_id):

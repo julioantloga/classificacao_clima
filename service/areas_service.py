@@ -1596,10 +1596,15 @@ def comment_score_calc(survey_id, df_areas):
     #aplica o peso de cada percepção no data frame
     df_perception["score"] = df_perception["perception_intension"].map(perception_weights).fillna(0)
 
+    # filtra os registros: remove scores nulos e perception_area_id = 0
+    df_filtered = df_perception[
+        df_perception["score"].notnull() & (df_perception["perception_area_id"] != 0)   
+    ]   
+
     ### 1 ### SOMENTE DIRETOS
     # cria uma nova df com tema por área e a coluna score já calculada (média das percepções)
     df_grouped = (
-        df_perception
+        df_filtered
         .groupby(["perception_area_id", "perception_theme"])["score"]
         .mean()
         .reset_index()
@@ -1673,15 +1678,15 @@ def calculate_theme_ranking(df_theme_ranking):
 
     # Cálculo das notas
     df["nota_geral"] = (
-        df["score"] 
-        + df["dissatisfied_score"] 
-        + df["comment_score"] * 1.3
-    )
+        df["score"] #0 a 100
+        - (df["dissatisfied_score"]*0.5) # 0 a 100
+        + (df["comment_score"] * 1.2) #-100 a 100
+    ) # range: min:-170  max:220
 
     df["nota_direta"] = (
-        df["direct_score"] 
-        + df["direct_dissatisfied_score"] 
-        + df["direct_comment_score"] * 1.3
+        df["direct_score"]
+        - (df["direct_dissatisfied_score"]*0.5)
+        + (df["direct_comment_score"] * 1.2)
     )
     return df
 

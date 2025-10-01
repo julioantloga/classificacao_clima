@@ -1,6 +1,7 @@
 from typing import Dict, List
 from sqlalchemy import text
 from db_config import engine
+import pandas as pd
 
 def employee_lookup_map(survey_id: int) -> Dict[str, dict]:
     """
@@ -65,3 +66,84 @@ def insert_themes(rows: List[dict]) -> int:
         conn.execute(sql, rows)
 
     return len(rows)
+
+def get_comment_perceptions_search(survey_id: int, area_id: str, intention: str, theme: str):
+    
+    params = {"sid": survey_id}
+
+    # 1) Buscar comentários da pesquisa
+    q_comments = """
+        SELECT 
+          c.comment_id,
+          c.comment,
+          c.comment_area_id,                   
+          q.question_name
+        FROM comment c
+        JOIN question q ON q.question_id = c.comment_question_id
+        WHERE q.question_survey_id = :sid
+    """
+
+    if area_id != '0':
+        q_comments += " AND c.comment_area_id = :aid"
+        params["aid"] = area_id
+    
+    q_comments = text(q_comments)
+    print (q_comments)
+    # 2) Percepções para os comentários retornados
+    query_str = """
+        SELECT 
+          p.perception_id,
+          p.perception_comment_id,
+          p.perception_comment_clipping,
+          p.perception_theme,
+          p.perception_intension
+        FROM perception p
+        WHERE p.perception_comment_id IN :ids
+    """
+   
+    if intention != "all":
+        query_str += " AND p.perception_intension = :intent"
+        params["intent"] = intention
+    
+    if theme != "all":
+        query_str += " AND p.perception_theme = :theme"
+        params["theme"] = theme
+
+    q_perceptions = text(query_str)
+
+    with engine.begin() as conn:
+       
+        comments = conn.execute(q_comments, params).mappings().all()
+
+        if not comments:
+            return []
+
+        # ids dos comentários
+        comment_ids = tuple([c["comment_id"] for c in comments])
+        print (comment_ids)
+        # SQLAlchemy precisa de tupla para IN
+        percs = conn.execute(q_perceptions, {**params, "ids": comment_ids}).mappings().all()
+    
+    # Agrupa percepções por comment_id
+    percs_by_comment = {}
+    for p in percs:
+        percs_by_comment.setdefault(p["perception_comment_id"], []).append({
+            "perception_id": p["perception_id"],
+            "perception_comment_clipping": p["perception_comment_clipping"],
+            "perception_theme": p["perception_theme"],
+            "perception_intension": p["perception_intension"],
+        })
+
+    # Monta rows
+    rows = []
+    for c in comments:
+        perceptions = percs_by_comment.get(c["comment_id"], [])
+        if perceptions:  # só adiciona se não for vazio
+            rows.append({
+                "comment_id": c["comment_id"],
+                "comment": c["comment"],
+                "question_name": c["question_name"],
+                "perceptions": perceptions
+            })
+    
+    return rows

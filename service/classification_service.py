@@ -6,7 +6,7 @@ from service.comment_repository import employee_lookup_map, insert_comments
 from .openai_client import get_openai_client
 from db_config import engine
 from sqlalchemy import text
- 
+
 def define_category_themes (categorias, temas):
     
     client = get_openai_client()
@@ -21,6 +21,10 @@ Categorias:
 
 Temas disponíveis:
 {temas}
+
+#Dicas
+- Categorias com "NPS" normalmente são relacionadas ao tema "Engajamento e Motivação"
+- Categorias que citam "Satisfação Geral" no Trabalho normalmente são relacionadas ao tema "Engajamento e Motivação"
 
 Output - traga somente a lista das categorias com o tema escolhido para ela:
 <categoria>: <tema>
@@ -51,7 +55,7 @@ Output - traga somente a lista das categorias com o tema escolhido para ela:
                 })
 
         df = pd.DataFrame(dados)
-
+        print (df)
         return df
     
     except Exception as e:
@@ -76,6 +80,11 @@ def save_themes_score(df_themes, survey_id):
 
     df_to_insert["survey_id"] = survey_id
     df_to_insert = df_to_insert.where(pd.notnull(df_to_insert), None)
+    df_to_insert = df_to_insert.dropna(subset=["score"])
+
+    df_to_insert["dissatisfied_score"] = df_to_insert["dissatisfied_score"].fillna(0)
+    df_to_insert["direct_dissatisfied_score"] = df_to_insert["direct_dissatisfied_score"].fillna(0)
+
     rows: List[dict] = df_to_insert.to_dict(orient="records")
 
     sql = text("""
@@ -112,8 +121,8 @@ def define_questions (df_campanha, survey_id, perguntas_abertas):
 
 def data_preprocessing(df_campanha, survey_id, df_employee):
     
-    perguntas_abertas = [1,18]
-    #perguntas_abertas = [165,166,167,168,169,170,171,172,175,176,178,179,181,182,183,184,185,187,188,191,192,193,195,196,200,203,204,241,242,243]
+    #perguntas_abertas = [1,18]
+    perguntas_abertas = [165,166,167,168,169,170,171,172,175,176,178,179,181,182,183,184,185,187,188,191,192,193,195,196,200,203,204,241,242,243]
     nova_planilha = []
     colunas = df_campanha.columns.tolist()
     # Valores indesejados para comentários

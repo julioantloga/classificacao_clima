@@ -61,9 +61,8 @@ def get_comments_with_perceptions(survey_id: int):
         FROM comment c
         JOIN question q ON q.question_id = c.comment_question_id
         WHERE q.question_survey_id = :sid
-        ORDER BY c.comment_id DESC
-        LIMIT 1000
     """)
+
     # 2) Percepções para os comentários retornados
     q_perceptions = text("""
         SELECT 

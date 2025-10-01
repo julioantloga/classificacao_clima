@@ -4,10 +4,19 @@
   <!-- Área -->
   <div class="input-field col s12 m4">
     <select id="search-area" name="area">
-      <option value="" selected>Todas</option>
+      {% if selected_area == 0 %}
+        <option value="0" selected>Todas</option>
+      {% else %}
+        <option value="0">Todas</option>
+      {% endif %}
+      
       {% for a in areas %}
-        <option value="{{ a.area_id }}">{{ a.area_name }}</option>
+        <option value="{{ a.area_id }}"
+                {% if selected_area|int == a.area_id|int %}selected{% endif %}>
+          {{ a.area_name }}
+        </option>
       {% endfor %}
+
     </select>
     <label for="search-area">Área</label>
   </div>
@@ -15,11 +24,36 @@
   <!-- Intenção -->
   <div class="input-field col s12 m4">
     <select id="search-intention" name="intention">
-      <option value="" selected>—</option>
-      <option value="reconhecimento">Reconhecimento</option>
-      <option value="crítica">Crítica</option>
-      <option value="sugestão">Sugestão</option>
-      <option value="neutro">Neutro</option>
+      {% if selected_intention == "all" %}
+        <option value="all" selected> Todas </option>
+      {% else %}
+        <option value="all"> Todas </option>
+      {% endif %}
+
+      {% if selected_intention == "Reconhecimento" %}
+        <option value="Reconhecimento" selected> Reconhecimento </option>
+      {% else %}
+        <option value="Reconhecimento"> Reconhecimento </option>
+      {% endif %}
+
+      {% if selected_intention == "Crítica" %}
+        <option value="Crítica" selected> Crítica </option>
+      {% else %}
+        <option value="Crítica"> Crítica </option>
+      {% endif %}
+
+      {% if selected_intention == "Sugestão" %}
+        <option value="Sugestão" selected> Sugestão </option>
+      {% else %}
+        <option value="Sugestão"> Sugestão </option>
+      {% endif %}
+
+      {% if selected_intention == "Neutro" %}
+        <option value="Neutro" selected> Neutro </option>
+      {% else %}
+        <option value="Neutro"> Neutro </option>
+      {% endif %}
+
     </select>
     <label for="search-intention">Intenção</label>
   </div>
@@ -27,10 +61,19 @@
   <!-- Tema -->
   <div class="input-field col s12 m4">
     <select id="search-theme" name="theme">
-      <option value="" selected>Todos</option>
+      {% if selected_theme == "all" %}
+        <option value="all" selected> Todos </option>
+      {% else %}
+        <option value="all"> Todos </option>
+      {% endif %}
+
       {% for t in themes %}
-        <option value="{{ t }}">{{ t }}</option>
+        <option value="{{ t }}"
+                {% if selected_theme == t %}selected{% endif %}>
+          {{ t }}
+        </option>
       {% endfor %}
+
     </select>
     <label for="search-theme">Tema</label>
   </div>

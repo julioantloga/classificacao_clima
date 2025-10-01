@@ -110,6 +110,13 @@
       margin: 0 0 10px 0;
     }
 
+    .content-box-plan h2 {
+      font-size: 24px;
+      font-weight: bold;
+      line-height: 26px;
+      margin: 12px 0 12px 0;
+    }
+    
     .content-box-plan h3 {
       font-size: 18px;
       font-weight: bold;
@@ -704,7 +711,6 @@
         }
       }
 
-
       // Recarrega a aba atual com o survey selecionado
       function refreshCurrentDashboardPage() {
         if (!DASHBOARD_SURVEY_ID) return;
@@ -732,12 +738,16 @@
           e.preventDefault();
           const params = new URLSearchParams(new FormData(form));
           const url = form.getAttribute('action') + '?' + params.toString();
+          container.innerHTML = 'Carregando...';
 
           fetch(url)
-            .then(r => r.json())
-            .then(j => {
-              if (window.M && M.toast) M.toast({ html: 'Busca enviada', displayLength: 1500 });
-              // TODO: quando implementar a busca de fato, aqui você injeta o resultado na aba
+            .then(r => { if (!r.ok) throw new Error('Erro ao buscar Comentários.'); return r.text(); })
+            /*.then(r => r.json())*/
+            .then(html => {
+              container.innerHTML = html;
+              
+              // rewire após reinjetar
+              wireCommentsForm(container);
             })
             .catch(() => {
               if (window.M && M.toast) M.toast({ html: 'Erro ao enviar busca', classes: 'red' });

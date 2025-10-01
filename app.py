@@ -7,6 +7,10 @@ import tempfile, uuid, threading, time
 from service.progress import progress_bus, timed_step
 import markdown
 
+from service.comment_repository import (
+    get_comment_perceptions_search
+)
+
 from service.classification_service import (
     data_preprocessing,
     persist_questions_and_comments,
@@ -28,7 +32,7 @@ from service.survey_repository import (
 from service.areas_repository import (
     insert_areas,
     fetch_survey_areas_with_intents,
-    update_theme_ranking_scores
+    update_theme_ranking_scores,
 )
 
 from service.person_repository import (
@@ -44,7 +48,8 @@ from service.areas_service import (
     get_themes_intents,
     comment_score_calc,
     get_theme_ranking,
-    calculate_theme_average
+    calculate_theme_average,
+    
 )
 
 from service.general_review import (
@@ -136,12 +141,26 @@ def dashboard_page(page):
         return render_template("area.html", survey=survey, areas=areas)
     
     if page == "comments":
+
         rows = get_comments_with_perceptions(survey_id)
         areas = list_areas_with_non_null_score(survey_id)
         themes = list_perception_themes_for_survey(survey_id)
+        selected_area = 0
+        selected_theme = "all"
+        selected_intention = "all"
 
-        return render_template("comments.html", survey=survey, rows=rows, areas=areas, themes=themes)
+        return render_template("comments.html",
+                survey=survey,
+                rows=rows,
+                areas=areas,
+                themes=themes,
+                selected_area = selected_area,
+                selected_theme = selected_theme,
+                selected_intention = selected_intention
+            )
 
+
+#Busca o resumo por área 
 @app.route('/dashboard/areas/search', methods=['GET'])
 def dashboard_areas_search():
     survey_id = request.args.get("survey_id", type=int)
@@ -163,6 +182,34 @@ def dashboard_areas_search():
                            selected_area=selected_area,
                            themes_intents_data=themes_intents_data)
 
+
+#Busca de comentários 
+@app.route('/dashboard/comments/search', methods=['GET'])
+def dashboard_comments_search():
+    survey = request.args.get("survey_id", type=int)
+
+    rows = get_comments_with_perceptions(survey)
+    areas = list_areas_with_non_null_score(survey)
+    themes = list_perception_themes_for_survey(survey)
+    
+    selected_area = request.args.get("area", default="")
+    selected_intention = request.args.get("intention", default="").strip()
+    selected_theme = request.args.get("theme", default="").strip()
+    
+    rows = get_comment_perceptions_search(survey, selected_area, selected_intention, selected_theme)
+    
+    return render_template("comments.html",
+                           survey=survey,
+                           #data=data,
+                           rows=rows,
+                           areas=areas,
+                           themes=themes,
+                           selected_area=selected_area,
+                           selected_intention=selected_intention,
+                           selected_theme=selected_theme)
+
+
+#Descartes
 @app.route("/classifica_comentarios", methods=["POST"])
 def classifica_comentarios_route():
     if "campanha" not in request.files or "pessoas" not in request.files:
@@ -313,6 +360,8 @@ def classifica_comentarios_async():
 
     return jsonify({"job_id": job_id})
 
+
+#Classifica os Comentários e analisa os dados
 @app.get("/events/<job_id>")
 def sse_events(job_id: str):
     def generate():
@@ -348,7 +397,7 @@ def _worker_pipeline(job_id: str, paths: dict, config: dict):
             "Autonomia e Tomada de Decisão",
             "Assédio",
             "Abuso de autoridade",
-            "Preconceito",
+            "Preconceito"
         ]
 
         # Leitura CSVs
@@ -360,6 +409,7 @@ def _worker_pipeline(job_id: str, paths: dict, config: dict):
             df_person_areas    = read_csv_flex(paths["person_areas"])
             df_notas_areas    = read_csv_flex(paths["nota_areas"])
             df_notas_categorias    = read_csv_flex(paths["nota_categorias"])
+
 
             return df_campanha, df_person, df_instancia_areas, df_hierarquia_areas, df_person_areas, df_notas_areas, df_notas_categorias
         
@@ -401,8 +451,7 @@ def _worker_pipeline(job_id: str, paths: dict, config: dict):
             df_area_category = df_notas_categorias[["categoria"]].drop_duplicates().reset_index(drop=True)
             return define_category_themes (df_area_category, temas)
 
-        df_category_themes = timed_step(job_id, "Atribuindo Tema na área...", _themes)
-        print (df_category_themes)
+        df_category_themes = timed_step(job_id, "Atribuindo categorias aos temas...", _themes)
 
         df_notas_theme = df_notas_categorias.merge(
             df_category_themes,     # DataFrame com categoria e tema
@@ -528,6 +577,7 @@ def api_survey_exists_path(sid: int):
     with engine.begin() as conn:
         row = conn.execute(text("SELECT 1 FROM survey WHERE survey_id = :sid"), {"sid": sid}).first()
     return jsonify({"exists": bool(row)}), 200
+
 
 # Dispara geração dos resumos de áreas (sincrono e simples)
 @app.post("/generate_area_reviews")
@@ -658,6 +708,8 @@ def _worker_area_reviews(job_id: str, survey_id: int, overwrite: bool):
         progress_bus.put(job_id, {"event": "done"})
         progress_bus.close(job_id)
 
+
+# Dispara geração dos planos de ação 
 @app.post("/generate_plans_async")
 def generate_plans_async():
     
@@ -688,100 +740,20 @@ def plan_events(job_id: str):
 
 def _worker_plans(job_id: str, survey_id: int, overwrite: bool):
     """
-    Worker: gera planos de ação por área (com SSE).
-    Eventos SSE:
-      - 'plan': {area_id, area_name, status}   (ok|indisponivel|erro}
-      - 'info'/'error'/'done'
+    Worker: gera planos de ação.
     """
-
+    
     try:
+
         progress_bus.put(job_id, {"event": "info", "message": "Iniciando geração de planos de ação..."})
-
+        
+        df_planos_de_acao = pd.read_csv("file/planos_de_acao.csv", sep=";")
+        
         critical_themes = get_comment_clippings_for_critical_themes(survey_id)
-
-        print (critical_themes)
-
-        predefined_plans_json = """
-[
-  {
-    "tema": "Sem tema",
-    "acoes": "Realizar uma nova pesquisa/investigar mais a fundo quais os principais pontos de descontentamento.\nTriar os principais tópicos citados nos comentários e priorizar por frequência e gravidade.\nRodar grupos focais rápidos por áreas críticas para qualificar causas.\nConsolidar achados e encaminhar cada item para o tema responsável, com prazos e responsáveis.\nEstabelecer rotina de follow-up mensal até estabilizar indicadores."
-  },
-  {
-    "tema": "Liderança e Gestão",
-    "acoes": "Construir mini descrições de cargos (3 principais tarefas e objetivos) e alinhar com os colaboradores.\nImplementar avaliação de desempenho e feedback formal com foco em alinhamento.\nCriar roteiro e padronização de 1:1s para expectativas, papéis e resultados.\nDefinir e desdobrar metas por pessoa/time e acompanhar resultados.\nA própria pessoa propor responsabilidades e discutir com gestor quando RH não tiver disponibilidade.\nCriar um framework para desdobrar metas e objetivos individuais.\nGarantir reuniões de acompanhamento (ex.: reuniões de resultados).\nPrograma de mentoria para a liderança.\nGuideline da liderança e canal com RH/BP para dúvidas e suporte.\nTreinamentos focados em gestão de pessoas e desenvolvimento de times.\nPrograma estruturado de desenvolvimento de lideranças.\nDemissões coerentes e alinhadas com guidelines.\nLista de comportamentos esperados e alinhados à cultura para a liderança."
-  },
-  {
-    "tema": "Comunicação Interna",
-    "acoes": "Rotina de feedback contínuo entre líderes e liderados.\nComunicação transparente sobre decisões estratégicas e eventuais layoffs.\nMomentos de 'conversa franca' e Q&A com a gestão.\nMapear e divulgar os principais processos (contratação, promoção, demissão) de forma clara."
-  },
-  {
-    "tema": "Reconhecimento e Valorização",
-    "acoes": "Criar política de promoções e movimentações com critérios claros.\nComunicar e reforçar a política periodicamente.\nDivulgar promoções e justificativas de forma transparente.\nPlano de sucessão por áreas-chave.\nRelacionar promoções a critérios (desempenho, tempo de casa, impacto).\nImplementar reconhecimentos não salariais.\nAVD formal garantindo troca entre líder e liderado.\nTransparência em processos de bônus."
-  },
-  {
-    "tema": "Desenvolvimento e Carreira",
-    "acoes": "Implementar programa de mentoria por funções/áreas.\nProcesso de acompanhamento com PDI.\nGrupos de estudos/ambientes de discussão e desenvolvimento.\nInserir perguntas específicas de desenvolvimento na AVD.\nClareza sobre trilhas de carreira e caminhos de promoção interna.\nIncentivar participação em projetos interáreas.\nPolíticas de incentivo financeiro à educação (cursos/MBA/livros).\nMapear interesses de carreira em 1:1s.\nCriar programa de recrutamento interno.\nProjetos para conhecer outras funções e ampliar repertório."
-  },
-  {
-    "tema": "Cultura e Valores Organizacionais",
-    "acoes": "Disseminar valores e comportamentos em materiais e referências visuais.\nGarantir passagem dos pilares de cultura no onboarding.\nAvaliar comportamentos culturais na AVD.\nMapear aderência cultural em entradas, promoções e desligamentos.\nUsar ferramentas de fit cultural (ex.: Mindmatch) no recrutamento.\nDiagnóstico de cultura: valores mais/menos presentes e exemplos práticos.\nAssegurar cultura nos momentos do ciclo de gente (contratações, treinamentos, promoções)."
-  },
-  {
-    "tema": "Relacionamento com a equipe",
-    "acoes": "Imersões/encontros do time para fortalecer vínculos.\nRotinas de troca (dailys, reuniões de resultado, knowledge sharing).\nEnvolver o time na resolução de problemas e decisões.\nPromover brainstorming e rituais de colaboração.\nDar mais autonomia e acordos de responsabilidade.\nDefinir metas colaborativas, além das individuais.\nAproximação líder-time (onboarding com conexão pessoal/profissional)."
-  },
-  {
-    "tema": "Relacionamento entre equipes",
-    "acoes": "Rotinas de troca interáreas (reuniões de resultado conjuntas, dailys intertimes).\nProjetos interáreas com objetivos compartilhados.\nRituais de alinhamento periódico entre pares críticos (ex.: Produto x Comercial x Operações)."
-  },
-  {
-    "tema": "Ambiente e Bem-estar no Trabalho",
-    "acoes": "Investigar causas do descontentamento com o escritório (tickets abertos, incidentes, recortes por área).\nAdaptar o escritório para pessoas com necessidades especiais.\nAvaliar mudança de escritório (segurança, acesso) quando pertinente.\nOferecer transporte quando houver barreiras de acesso.\nGarantir limpeza e manutenção do espaço.\nApoio profissional (parcerias com Gympass/saúde mental).\nComunicação interna sobre bem-estar com dicas e exemplos.\nChecar uso de benefícios (saúde, exercícios) e incentivar adesão.\nAcompanhar férias e evitar acúmulo.\nGrupos de afinidade não obrigatórios (corrida, leitura, pais e mães).\nCanal seguro para reportar quaisquer problemas.\nRevisar necessidade/frequência de viagens e trabalho em fins de semana.\nAvaliar coerência de prazos e cargas."
-  },
-  {
-    "tema": "Carga de Trabalho",
-    "acoes": "Estabelecer combinados de comunicação e volume de trabalho.\nRevisar prazos e coerência de demandas com liderança.\nEstudo de dimensionamento de time/HC para reduzir sobrecarga."
-  },
-  {
-    "tema": "Remuneração e Benefícios",
-    "acoes": "Criar política de cargos e salários e comunicar amplamente.\nReforçar a política periodicamente com benchmarks de mercado.\nAdequar áreas/empresa à política quando houver desvios.\nTrabalhar Employer Branding e EVP.\nDar clareza sobre total compensation e critérios de elegibilidade.\nFortalecer benefícios (plano de saúde, Gympass etc.)."
-  },
-  {
-    "tema": "Diversidade e Inclusão e Equidade",
-    "acoes": "Política de D&I com diretrizes de linguagem e comportamento inclusivo.\nTreinamentos periódicos de vieses inconscientes e inclusão.\nRevisar descrições de vagas e processo seletivo para neutralidade e acessibilidade.\nCriar/fortalecer grupos de afinidade com patrocínio executivo.\nAuditoria de equidade salarial por recortes e plano de correção.\nGarantir acessibilidade física e digital (ferramentas e espaços).\nMetas de representatividade e acompanhamento trimestral.\nCanal seguro sem retaliação para denúncias de discriminação."
-  },
-  {
-    "tema": "Recursos, Ferramentas e Estrutura",
-    "acoes": "Caso o problema esteja em equipamentos: comprar novos equipamentos (por área ou empresa).\nVerificar se existe suporte adequado aos equipamentos e horários de atendimento.\nDefinir claramente quem é responsável por parque de máquinas, manutenção e adaptações (PCD, softwares necessários).\nMapear programas e licenças essenciais por função e garantir provisionamento.\nEstabelecer SLA de atendimento de TI e inventário de ativos.\nTreinamentos rápidos sobre ferramentas essenciais e boas práticas.\nProcesso de request/approval para novos recursos com critérios claros."
-  },
-  {
-    "tema": "Engajamento e Motivação",
-    "acoes": "Transparência da liderança sobre decisões e contexto do negócio.\nExplicar papéis e impacto de cada colaborador no resultado.\nDar espaço real para opinião e participação em decisões.\nInstituir Q&A aberto recorrente.\nConectar metas da empresa às responsabilidades individuais.\nCriar identidade/time branding para fortalecer pertencimento.\nRodar pesquisas para entender satisfação e intenção de ficar e agir sobre resultados."
-  },
-  {
-    "tema": "Autonomia e Tomada de Decisão",
-    "acoes": "Acordos de autonomia por nível de senioridade.\nDelegação progressiva com acompanhamento via 1:1 e rituais de revisão.\nEstimular resolução direta entre pares antes de escalar.\nDefinir limites de decisão e critérios de escalonamento."
-  },
-  {
-    "tema": "Assédio",
-    "acoes": "Política explícita de tolerância zero ao assédio (sexual, moral), com exemplos práticos.\nTreinamento obrigatório anual de prevenção e identificação de assédio.\nCanais confidenciais e multilinha (incluindo ombudsman externo) para denúncia.\nProcesso padronizado e célere de apuração, com prazos e responsáveis.\nProteção contra retaliação e suporte às pessoas envolvidas.\nComunicação de medidas disciplinares (preservando identidades) para reforço cultural.\nMonitoramento por pesquisas pulse e acompanhamento de indicadores."
-  },
-  {
-    "tema": "Abuso de autoridade",
-    "acoes": "Definir claramente condutas que caracterizam abuso de autoridade.\nImplementar 360° para líderes com leitura por RH e plano de ação obrigatório.\nMatriz de escalonamento e governança para conflitos líder-liderado.\nTreinamento para liderança sobre limites de poder e conduta ética.\nAuditoria periódica de decisões críticas (promoções, alocações, punições) por RH.\nSanções progressivas e coerentes previstas em guideline."
-  },
-  {
-    "tema": "Preconceito",
-    "acoes": "Política antidiscriminatória com exemplos e consequências claras.\nTreinamento recorrente de vieses, linguagem inclusiva e bystander intervention.\nProcesso de denúncia seguro e confidencial, com não retaliação.\nRevisar pipeline de recrutamento e promoção para reduzir vieses.\nComunicação ativa de casos de aprendizado (sem expor pessoas) e compromissos.\nMétricas de incidentes e acompanhamento de correções."
-  }
-]
-"""
+        predefined_plans_json = df_planos_de_acao[df_planos_de_acao["theme_name"].isin(critical_themes["theme_name"])]
+        
 
         action_plans, plan_review = generate_action_plans(critical_themes, predefined_plans_json, survey_id)
-
-        print(plan_review)
-        print(action_plans.to_string())
 
         #df_plan = fetch_survey_areas_with_intents(survey_id)
 
