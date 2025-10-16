@@ -6,6 +6,7 @@ import json
 
 REQUIRED_COLS = {"area_id", "area_name", "area_parent", "area_survey_id"}
 
+#OK
 def insert_areas (df_areas: pd.DataFrame) -> int:
     """
     Insere todas as linhas de df_areas na tabela 'area'.
@@ -197,6 +198,7 @@ def update_area_metrics_bulk(survey_id: int, df_metrics: pd.DataFrame, chunk_siz
                 total += len(batch)
     return total
 
+#OK
 def fetch_survey_areas_with_intents(survey_id: int) -> pd.DataFrame:
     """
     Retorna as áreas do survey com seus JSONs de intenções (se houver).
@@ -439,38 +441,84 @@ def get_themes_score (survey_id):
             conn, params={"sid": survey_id}
         ) 
        
-def update_theme_ranking_scores(survey_id, scores_by_area):
+#OK
+def update_theme_ranking_scores(survey_id, df_scores):
+    """
+    Atualiza a tabela theme_ranking com base nos scores de comentários.
+
+    Espera um DataFrame com as colunas:
+    ['area_id', 'theme_name', 'direto', 'total']
+    """
     with engine.begin() as conn:
-        for area_id, area_scores in scores_by_area.items():
-            direct_scores = area_scores.get("direto", {})
-            total_scores = area_scores.get("total", {})
 
-            for theme_name, direct_score in direct_scores.items():
-                total_score = total_scores.get(theme_name, 0)
+        for _, row in df_scores.iterrows():
+            area_id = int(row["area_id"])
+            theme_name = row["theme_name"]
+            direct_score = row["direto"]
+            total_score = row["total"]
 
-                result = conn.execute(
-                    text("""
-                        UPDATE theme_ranking
-                        SET 
-                            direct_comment_score = :dcs,
-                            comment_score = :cs
-                        WHERE 
-                            area_id = :aid 
-                            AND survey_id = :sid 
-                            AND theme_name = :t
-                    """),
-                    {
-                        "dcs": direct_score,
-                        "cs": total_score,
-                        "aid": area_id,
-                        "sid": survey_id,
-                        "t": theme_name
-                    }
-                )
+            # Substitui NaN por None (equivalente a NULL no SQL)
+            if pd.isna(direct_score):
+                direct_score = None
+            if pd.isna(total_score):
+                total_score = None
+            if not theme_name or pd.isna(theme_name):
+                continue  # evita erro de parâmetro vazio
 
-                # Se nenhum registro foi atualizado, ignora e segue
-                if result.rowcount == 0:
-                    continue
+            result = conn.execute(
+                text("""
+                    UPDATE theme_ranking
+                    SET 
+                        direct_comment_score = :dcs,
+                        comment_score = :cs
+                    WHERE 
+                        area_id = :aid 
+                        AND survey_id = :sid 
+                        AND theme_name = :t
+                """),
+                {
+                    "dcs": direct_score,
+                    "cs": total_score,
+                    "aid": area_id,
+                    "sid": survey_id,
+                    "t": theme_name
+                }
+            )
 
+            # Se nenhum registro for atualizado, apenas ignora
+            if result.rowcount == 0:
+                continue
+              
     return True
 
+#OK
+def get_area_weights(survey_id):
+    """
+    Retorna um DataFrame e um dicionário com os pesos das áreas,
+    calculados a partir da contagem de colaboradores na tabela employee.
+    """
+    with engine.begin() as conn:
+        # Seleciona os colaboradores vinculados ao survey
+        df_employees = pd.read_sql(
+            text("""
+                SELECT employee_area_id
+                FROM employee
+                WHERE employee_survey_id = :sid
+            """),
+            conn, params={"sid": survey_id}
+        )
+
+
+    # Conta quantos funcionários tem em cada área
+    df_pesos = (
+        df_employees
+        .groupby("employee_area_id")
+        .size()
+        .reset_index(name="qtd_colaboradores")
+    )
+
+    # Calcula o peso proporcional em relação ao total
+    total = df_pesos["qtd_colaboradores"].sum()
+    df_pesos["peso"] = ((df_pesos["qtd_colaboradores"] / total) * 100).round(2)
+
+    return df_pesos

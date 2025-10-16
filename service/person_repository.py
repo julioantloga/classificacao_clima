@@ -11,6 +11,7 @@ REQUIRED_COLS = {
     "employee_survey_id",
 }
 
+#OK
 def insert_person(df_employee: pd.DataFrame) -> int:
     """
     Insere todas as linhas de df_employee na tabela 'employee'.

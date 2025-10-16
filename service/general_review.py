@@ -1,3 +1,4 @@
+
 # service/general_review.py
 from __future__ import annotations
 import json
@@ -6,7 +7,6 @@ import pandas as pd
 from sqlalchemy import text
 from typing import Union
 import re
-
 from db_config import engine
 
 from .areas_repository import (
@@ -17,7 +17,11 @@ from .areas_repository import (
 )
 
 from .openai_client import get_openai_client
-from .areas_service import _compute_area_levels  # já existe
+from .areas_service import _compute_area_levels
+
+from service.config import (
+    get_survey_config
+)
 
 # ----------------------------------------------------------
 # Util: garantir a existência da área "Geral" (area_id = 0)
@@ -259,6 +263,8 @@ def build_general_json_and_metrics(
 # ----------------------------------------------------------
 # Gera e salva o Resumo Executivo Geral (OpenAI)
 # ----------------------------------------------------------
+
+#OK
 def generate_and_save_general_review(
     survey_id: int,
     model: str = "gpt-4o",
@@ -718,6 +724,7 @@ def get_ranking_general_themes(survey_id: int) -> pd.DataFrame:
     
     return df
 
+#OK
 def save_general_ranking(ranking):
 
     df_to_insert = ranking[[
@@ -752,9 +759,7 @@ def save_general_ranking(ranking):
         conn.execute(sql, rows)
 
 def get_critical_theme_ranking(survey_id):
-    """
 
-    """
     with engine.begin() as conn:
         df = pd.read_sql(
             text("""
@@ -764,7 +769,7 @@ def get_critical_theme_ranking(survey_id):
                 WHERE survey_id = :sid
                   AND area_id = 0
                 ORDER BY ranking
-                LIMIT 3 
+                LIMIT 3
             """),
             conn,
             params={"sid": survey_id}
@@ -772,7 +777,7 @@ def get_critical_theme_ranking(survey_id):
   
     return df
 
-
+#OK
 def get_general_action_plan(survey_id):
     """
 
@@ -792,6 +797,7 @@ def get_general_action_plan(survey_id):
     
     return df
     
+#OK
 def get_comment_clippings_for_critical_themes(survey_id):
     """
     Retorna um DataFrame com os 3 temas mais críticos e os respectivos recortes de comentários (texto + intenção).
@@ -846,12 +852,13 @@ def get_comment_clippings_for_critical_themes(survey_id):
 
     return final_df
 
-def _build_prompt_for_theme(theme_name, recortes, actions):
+def _build_prompt_for_theme(theme_name, recortes, actions, survey_id):
     """
     Gera o prompt para um tema específico com base nos recortes e planos pré-definidos.
     """
 
     actions_text = ""
+    problemas_text = ""
     for _, row in actions.iterrows():
         problema = row["problema"]
         
@@ -860,50 +867,135 @@ def _build_prompt_for_theme(theme_name, recortes, actions):
 
         bloco = f"Se o problema raíz for **{problema}**, utilize como referência as seguintes ações:\n" + "\n".join(lista_acoes) + "\n\n"
         actions_text += bloco
+        problemas_text += "- "+problema+"\n"
 
+    client = get_openai_client()
+    model = "gpt-4o"
+    temperature = 0.0
 
-    prompt = f"""
+    config = get_survey_config(survey_id)
+
+    prompt_problemas = f"""
 #Objetivo
-Você é um especialista em gestão organizacional e o seu objetivo é sugerir um plano de ação para a gestão de RH da empresa.
+Você é um especialista em gestão organizacional em uma organização onde os colaboradores estão insatisfeitos com relação à "{theme_name}". 
+O seu objetivo é encontrar os problemas raizes dessa insatisfação a partir dos comentários dos colaboradores na pesquisa de clima.
 
-Abaixo estão informações coletadas de uma pesquisa de clima sobre o tema "{theme_name}", que está entre os mais críticos na organização.
+{config["sobre_empresa"]}
+{config["valores"]}
 
-# Contexto da empresa: 
-A Mindsight é uma startup que produz soluções tecnológicas para o mercado de RH com foco em gestão de talentos. Em resumo, é uma empresa que trabalha 100% em home office, com colaboradores espalhados por todo o Brasil, e oferece espaço físico em São Paulo para quem quiser trabalhar de lá. 
-A empresa possui um base científica forte e tem os seguintes valores como pilares: PROFUNDIDADE APLICADA, RESPONSABILIDADE COMPARTILHADA, EVOLUÇÃO CONTÍNUA, FRANQUEZA E TRANSPARÊNCIA e ATITUDE EMPREENDEDORA.
-Além da pesquisa de clima, a empresa já utiliza boas práticas para desenvolvimento de talentos como: AVD, 1:1, Fóruns de reconhecimento e treinamento de lideranças.
+Veja abaixo algumas configuraççoes da empresa, como Canais de comunicação, Locais para armazenamento e busca de informação, ações práticas que já são efetuadas, os benefícios oferecidos aos colaboradores e os indicadores que já são medidos.
+## Políicas internas
+{config["politicas"]}
 
-# Comentários dos colaboradores:
+## Canais de comunicação:
+{config["canais_comunicacao"]}
+
+## Locais de informação:
+{config["armazenamento_info"]}
+
+## Ações práticas que já são efetuadas
+{config["acoes_rh"]}
+
+## indicadores que já acompanham
+{config["metricas"]}
+
+#Instruções
+- Utilize a base de problemas abaixo como referência para sugerir os possíveis problemas raízes.
+- Só sugira problemas que estão listados na base de problemas.
+- Traga o trecho que fez considerar o problema
+- Otimize problemas parecidos: sugira até 2 problemas com o maior número de trechos que se conecte com eles.
+
+# Base de problemas:
+{problemas_text}
+
+# Comentários dos colaboradores referente à {theme_name}:
 Estes são os recortes dos comentários associados a este tema. Cada recorte contém o comentário e sua intenção percebida (reconhecimento, sugestão, crítica ou neutra):
-
 {json.dumps(recortes, indent=2, ensure_ascii=False)}
 
-# Planos de ação disponíveis:
-Você deve sugerir um ou mais planos de ação a partir desta base de problemas e ações abaixo. Utilize ela como referência metodológica:
+No output, traga somente a lista com o nome dos problemas identificados:
+- <problema 1>:
+- <problema 2>:
+    """
+    
+    response = client.chat.completions.create(
+    model=model,
+    messages=[{"role": "user", "content": prompt_problemas}],
+    temperature=temperature,
+)
+    problems = response.choices[0].message.content.strip()
+    
+    prompt = f"""
+#Objetivo
+Você é um especialista em pesquisa de clima organizacional em uma organização onde os colaboradores estão insatisfeitos com relação à "{theme_name}". 
+Depois de uma análise prévia você identificou que os problemas estão relacionados aos seguintes problemas:
+{problems}
+O seu objetivo é criar um plano de ação para o time de RH alinhado ao contexto da empresa para resolver esses problemas.
 
-{actions_text}
+# Contexto da empresa:
+{config["sobre_empresa"]}
+{config["valores"]}
 
-### Instruções:
-- Identifique os problemas raízes a partir dos comentários, foque nos problemas com mais de uma citação.
-- Escolha as ações mais adequadas da lista de planos ação disponíveis para atender os problemas identificados.
-- O plano de ação deve ser somente uma lista de ações lógicas e conectadas com o contexto da empresa.
-- Personalize as ações e acordo com os problemas identificados nos comentários.
-- É importante garantir que os planos de ação atenda os problemas identificados.
+Veja abaixo algumas configuraççoes da empresa, como Canais de comunicação, Locais para armazenamento e busca de informação, ações práticas que já são efetuadas, os benefícios oferecidos aos colaboradores e os indicadores que já são medidos.
+## Políicas internas
+{config["politicas"]}
 
-Retorne no formato markdown apenas um nome para o plano, a lista de ações do plano e uma justificativa, sem repetir comentários.
+## Canais de comunicação:
+{config["canais_comunicacao"]}
+
+## Locais de informação:
+{config["armazenamento_info"]}
+
+## Ações práticas que já são efetuadas
+{config["acoes_rh"]}
+
+## indicadores que já acompanham
+{config["metricas"]}
+
+#Instruções
+- Foque nos problemas listados, não sugira novos problemas.
+- Utilize a base de comentários para se aprofundar nos problemas.
+- Não liste ações relacionadas a comentários isolados, ou seja, aqueles que não se assemelham a outro comentário. Isso é importante para não dar peso para coisas pouco mencionadas.
+- Personalize o plano de ação de acordo com o seguinte frame: Ações práticas, Ações de comunicação interna e externa (se existir) e Ações para acompanhamento dos resultados.
+- Elabore uma descrição enxuta para cada ação escolhida.
+- Elabore uma justificatica para o plano de ação escolhido.
+
+# base de comentários:
+Estes são os recortes dos comentários associados a este tema. Cada recorte contém o comentário e sua intenção percebida (reconhecimento, sugestão, crítica ou neutra):
+{json.dumps(recortes, indent=2, ensure_ascii=False)}
 
 Exemplo de output:
-## **<tema>**
-### **<problema identificado>**
-- **Rotina de Feedback Contínuo**: Estabelecer uma rotina de feedback contínuo entre líderes e liderados para garantir que as opiniões dos colaboradores sejam ouvidas e consideradas nas decisões.   
-- **Comunicação Transparente**: Implementar uma comunicação transparente sobre decisões estratégicas e mudanças organizacionais, garantindo que todos os colaboradores estejam cientes das direções e estratégias da empresa.
-- **Canais de Comunicação Dedicados**: Criar canais de comunicação dedicados para anúncios importantes, separando-os de outras mensagens para evitar que informações cruciais se percam.
-- **Momentos de 'Conversa Franca' e Q&A**: Organizar sessões regulares de 'conversa franca' e Q&A com a gestão para discutir abertamente as preocupações dos colaboradores e esclarecer dúvidas sobre estratégias e decisões.
-- **Mapeamento e Divulgação de Processos**: Mapear e divulgar claramente os principais processos internos, como contratação, promoção e demissão, para aumentar a transparência e a compreensão entre os colaboradores.
+## **<{theme_name}>**
+### **<problema>**
+####Ações práticas
+- **<acao>**:<descrição>
+- **<acao>**:<descrição>
+####Comunicação
+- **<acao>**:<descrição>
+- **<acao>**:<descrição>
+####Acompanhamento
+- **<acao>**:<descrição>
+- **<acao>**:<descrição>
+
+### **<problema>**
+####Ações práticas
+- **<acao>**:<descrição>
+- **<acao>**:<descrição>
+####Comunicação
+- **<acao>**:<descrição>
+- **<acao>**:<descrição>
+####Acompanhamento
+- **<acao>**:<descrição>
+- **<acao>**:<descrição>
+
+####justificativa
+<justificativa>
+
+---
     """
 
     return prompt.strip()
 
+#OK
 def generate_action_plans(critical_df, predefined_plans_json, survey_id):
     """
     Para cada tema crítico no DataFrame, gera um plano de ação baseado nos comentários e planos disponíveis.
@@ -913,6 +1005,7 @@ def generate_action_plans(critical_df, predefined_plans_json, survey_id):
     temperature = 0.0
 
     action_plan_results = []
+    plan_review = []
 
     for _, row in critical_df.iterrows():
         theme_name = row["theme_name"]
@@ -923,15 +1016,13 @@ def generate_action_plans(critical_df, predefined_plans_json, survey_id):
             predefined_plans_json["theme_name"].isin([row["theme_name"]])
         ]
 
-
         prompt = _build_prompt_for_theme(
             theme_name=theme_name,
             recortes=recortes,
-            actions=actions
+            actions=actions,
+            survey_id = survey_id
         )
         
-        print (prompt)
-
         try:
             response = client.chat.completions.create(
                 model=model,
@@ -959,16 +1050,13 @@ def generate_action_plans(critical_df, predefined_plans_json, survey_id):
     overview_prompt =  f"""
 Você é um especialista em clima organizacional e precisa criar um resumo dos planos de ação definidos para o RH da empresa
 
-### Contexto da empresa: 
-A Mindsight é uma startup que produz soluções tecnológicas para o mercado de RH com foco em gestão de talentos. Em resumo, é uma empresa que trabalha 100% em home office, com colaboradores espalhados por todo o Brasil, e oferece espaço físico em São Paulo para quem quiser trabalhar de lá. 
-A empresa possui um base científica forte e tem os seguintes valores como pilares: Responsabilidade compartilhada, Empreendedorismo, Autonomia, Flexibilidade e Autenticidade.
-
 ### Instruções:
 - Avalie e resuma os planos de ação definidos abaixo
-- Crie um resumo textual dos planos de ação
-- Os planos de ação abaixo estão relacionados aos temas mais críticos encontrados na pesquisa.
-- Considere que os planos de ação foram gerados com base nas notas e nos comentários da pesquisa
+
+- Considere que os planos de ação estão relacionados aos temas mais críticos encontrados na pesquisa.
+- Considere que os planos de ação foram gerados com base nas notas e nos comentários da pesquisa.
 - Não inclua as Justificativas no output
+- Crie um resumo geral dos planos em texto.
 - Seja objetivo, evite textos muito longos.
 
 ### Planos de ação:
@@ -978,11 +1066,14 @@ Retorne no formato markdown
 
 #Exemplo de output:
 
-<resumo textual enxuto dos planos de ação>
+##Resumo dos planos de Ação
+
+<resumo>
 
 ###**Plano A**:
 - ação a
 - ação b
+
 ###**Plano B**:
 - ação a
 - ação b
@@ -999,9 +1090,8 @@ Retorne no formato markdown
     except Exception as e:
         return e
 
-
     return pd.DataFrame(action_plan_results), plan_review
-
+    
 def insert_action_plan(theme_name, content, survey_id, type):
     """
 
@@ -1023,4 +1113,3 @@ def insert_action_plan(theme_name, content, survey_id, type):
 
     with engine.begin() as conn:
         conn.execute(sql, row)
-

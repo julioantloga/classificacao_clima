@@ -67,6 +67,7 @@ def insert_themes(rows: List[dict]) -> int:
 
     return len(rows)
 
+#OK
 def get_comment_perceptions_search(survey_id: int, area_id: int, intention: str, theme: str):
     
     params = {"sid": survey_id}

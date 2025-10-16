@@ -7,6 +7,7 @@ from .openai_client import get_openai_client
 from db_config import engine
 from sqlalchemy import text
 
+#FAZ VÍNCULO DAS CATEGORIAS COM OS TEMAS
 def define_category_themes (categorias, temas):
     
     client = get_openai_client()
@@ -55,35 +56,38 @@ Output - traga somente a lista das categorias com o tema escolhido para ela:
                 })
 
         df = pd.DataFrame(dados)
-        print (df)
+       
         return df
     
     except Exception as e:
         print(f"Erro ao classificar pergunta: {categorias}\n{e}")
         return "Erro na classificação"
 
+#OK
 def save_themes_score(df_themes, survey_id):
     df_to_insert = df_themes[[
         "area_id",
         "tema",
         "nota",
-        "nota diretos",
-        "porcentagem insatisfeitos",
-        "porcentagem insatisfeitos diretos",
+        "nota_diretos",
+        "porcentagem_insatisfeitos",
+        "porcentagem_insatisfeitos_diretos",
     ]].rename(columns={
         "tema": "theme_name",
         "nota": "score",
-        "nota diretos": "direct_score",
-        "porcentagem insatisfeitos": "dissatisfied_score",
-        "porcentagem insatisfeitos diretos":"direct_dissatisfied_score",
+        "nota_diretos": "direct_score",
+        "porcentagem_insatisfeitos": "dissatisfied_score",
+        "porcentagem_insatisfeitos_diretos":"direct_dissatisfied_score",
     })
 
     df_to_insert["survey_id"] = survey_id
-    df_to_insert = df_to_insert.where(pd.notnull(df_to_insert), None)
     df_to_insert = df_to_insert.dropna(subset=["score"])
+    df_to_insert = df_to_insert.where(pd.notnull(df_to_insert), None)
 
     df_to_insert["dissatisfied_score"] = df_to_insert["dissatisfied_score"].fillna(0)
     df_to_insert["direct_dissatisfied_score"] = df_to_insert["direct_dissatisfied_score"].fillna(0)
+
+    print (df_to_insert)
 
     rows: List[dict] = df_to_insert.to_dict(orient="records")
 
@@ -119,12 +123,13 @@ def define_questions (df_campanha, survey_id, perguntas_abertas):
                 
     return True
 
-def data_preprocessing(df_campanha, survey_id, df_employee):
-    
-    #perguntas_abertas = [1,18]
-    perguntas_abertas = [165,166,167,168,169,170,171,172,175,176,178,179,181,182,183,184,185,187,188,191,192,193,195,196,200,203,204,241,242,243]
+#OK
+def data_preprocessing(df_campanha, survey_id, df_employee, perguntas_abertas):
+      
+    perguntas_abertas = [int(i.strip()) for i in perguntas_abertas.split(",") if i.strip()]
     nova_planilha = []
     colunas = df_campanha.columns.tolist()
+ 
     # Valores indesejados para comentários
     INVALID_COMMENTS = {".", "..", "...", "-", "--", "---", "NULL", "null", "NaN", "nan", "na", "N/A", "n/a", "N/a","N/D", "N/d", "n/d", "nd", "ND", "Nenhuma", "Nehuma.", "Não aplicável", "Não aplicável.", "Não tenho", "Não tenho.", "Nada a declarar", "Nada a declarar.", "Sem considerações", "Sem considerações.", "Sem comentários"}
     
@@ -213,6 +218,7 @@ def data_preprocessing(df_campanha, survey_id, df_employee):
     
     return df_final
 
+#OK
 def persist_questions_and_comments(df_final: pd.DataFrame) -> Dict[str, int]: 
 
     """
@@ -252,6 +258,8 @@ def persist_questions_and_comments(df_final: pd.DataFrame) -> Dict[str, int]:
             .dropna().astype(str).str.strip()
             .unique().tolist()
         )
+
+
         qmap = insert_questions(sid, question_names)
         stats["questions"] += len(qmap)
 

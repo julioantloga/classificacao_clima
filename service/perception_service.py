@@ -1,13 +1,16 @@
 # service/perception_service.py
 from typing import Dict, List, Tuple
 import re
-
+from db_config import engine
+import pandas as pd
+from sqlalchemy import text
 from service.openai_client import get_openai_client
 from service.perception_repository import (
     fetch_employee_comments_grouped,
     insert_perceptions,
     delete_perceptions_for_survey,
 )
+
 
 # -------- Prompt builders --------
 
@@ -127,6 +130,7 @@ def _resolve_comment_id(block: dict, items: List[dict]) -> int | None:
 
 # -------- Execução: por survey, por employee --------
 
+#OK
 def classify_and_save_perceptions(
     survey_id: int,
     temas: List[str],
@@ -203,3 +207,46 @@ def classify_and_save_perceptions(
         "employees_skipped": skipped,
         "completion_tokens": completion_tokens_list
     }
+
+#OK
+def get_theme_perceptions(survey_id, themes):
+
+    # cria placeholders dinâmicos (:t0, :t1, :t2, ...)
+    placeholders = ", ".join([f":t{i}" for i in range(len(themes))])
+
+    # monta o SQL injetando apenas os placeholders
+    query = text(f"""
+        SELECT
+            area_id, theme_name, score, dissatisfied_score, comment_score
+        FROM theme_ranking
+        WHERE survey_id = :sid
+        AND theme_name IN ({placeholders})
+    """)
+
+    # monta o dicionário de parâmetros
+    params = {"sid": survey_id}
+    params.update({f"t{i}": t for i, t in enumerate(themes)})
+
+    with engine.begin() as conn:
+        df = pd.read_sql(query, conn, params=params)
+
+    df_theme_avg = (
+        df.groupby("theme_name", dropna=True)
+        .agg({
+            "score": "mean",
+            "dissatisfied_score": "mean",
+            "comment_score": "mean"
+        })
+        .reset_index()
+        .rename(columns={
+            "score": "score_medio",
+            "dissatisfied_score": "dissatisfied_score_medio",
+            "comment_score": "comment_score_medio"
+        })  
+    )
+
+    # arredonda valores
+    df_theme_avg = df_theme_avg.round(2)
+
+
+    return df_theme_avg

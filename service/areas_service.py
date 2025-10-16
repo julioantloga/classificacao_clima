@@ -27,6 +27,7 @@ from .areas_repository import (
 # Definição do Organograma
 # ============================================================
 
+#OK
 def create_organizational_chart(
     df_instancia_areas: pd.DataFrame,
     df_hierarquia_areas: pd.DataFrame,
@@ -1135,6 +1136,7 @@ def _is_empty_intents_payload(payload) -> bool:
     # Outros tipos (int, float, etc.): se tem valor → considera não-vazio
     return False
 
+#OK
 def generate_and_save_area_reviews(
     survey_id: int,
     model: str = "gpt-4o",
@@ -1523,6 +1525,7 @@ def generate_and_save_area_plans(survey_id: int, model: str, temperature: float,
 # Análises
 # ============================================================
 
+#OK
 def get_themes_intents(area_id, survey_id: int) -> pd.DataFrame:
     """
     Retorna a quantidade de percepções (tema x intenção) para os funcionários de uma determinada área.
@@ -1573,6 +1576,7 @@ def get_themes_intents(area_id, survey_id: int) -> pd.DataFrame:
 # FUNÇÕES V2
 # ============================================================
 
+#OK
 def closed_question_classification (pergunta, temas):
     
     client = get_openai_client()
@@ -1588,6 +1592,9 @@ Questão:
 Temas disponíveis:
 {temas}
 
+Exeções:
+- Questões de NPS (indicação para amigo ou familiar em uma escala de 0 a 10) normalmente são relacionadas a engajamento.
+
 Output: somente o nome do tema
 """
     try:
@@ -1602,47 +1609,55 @@ Output: somente o nome do tema
         print(f"Erro ao classificar pergunta: {pergunta}\n{e}")
         return "Erro na classificação"
 
+
+#OK
 def comment_score_calc(survey_id, df_areas):
+    """
+    Calcula notas diretas e totais dos temas por área,
+    penaliza por intenção × volume, ajusta por hierarquia,
+    e normaliza de 0 a 100 mantendo valores nulos.
+    """
+    
+    # === 1️⃣ Coleta percepções
     df_perception = get_area_perceptions(survey_id)
 
+    # === 2️⃣ Pesos por tipo de intenção
     perception_weights = {
         "Neutro": 0,
-        "Sugestão": -1,
-        "Crítica": -2,
-        "Reconhecimento": 2
+        "Sugestão": -2.5,
+        "Crítica": -5,
+        "Reconhecimento": 5
     }
 
-    #aplica o peso de cada percepção no data frame
-    df_perception["score"] = df_perception["perception_intension"].map(perception_weights).fillna(0)
+    # Remove intenções inválidas
+    df_perception = df_perception[df_perception["perception_intension"].isin(perception_weights.keys())]
+    df_perception = df_perception[df_perception["perception_area_id"] != 0]
 
-    # filtra os registros: remove scores nulos e perception_area_id = 0
-    df_filtered = df_perception[
-        df_perception["score"].notnull() & (df_perception["perception_area_id"] != 0)   
-    ]   
+    # === 3️⃣ Nota direta por (área, tema, intenção)
+    df_perception["peso"] = df_perception["perception_intension"].map(perception_weights)
 
-    ### 1 ### SOMENTE DIRETOS
-    # cria uma nova df com tema por área e a coluna score já calculada (média das percepções)
-    df_grouped = (
-        df_filtered
-        .groupby(["perception_area_id", "perception_theme"])["score"]
-        .mean()
+    df_direto = (
+        df_perception
+        .groupby(["perception_area_id", "perception_theme", "perception_intension"])
+        .size()
+        .reset_index(name="volume")
+    )
+
+    df_direto["nota_parcial"] = df_direto["volume"] * df_direto["perception_intension"].map(perception_weights)
+
+    df_direto_final = (
+        df_direto
+        .groupby(["perception_area_id", "perception_theme"])["nota_parcial"]
+        .sum()
         .reset_index()
+        .rename(columns={
+            "perception_area_id": "area_id",
+            "perception_theme": "theme_name",
+            "nota_parcial": "nota_direta_bruta"
+        })
     )
 
-    # cria o dicionáio
-    direct_scores = (
-        df_grouped
-        .pivot(index="perception_area_id", columns="perception_theme", values="score")
-        .to_dict(orient="index")
-    )
-
-    # garante o formato correto dos dados
-    direct_scores = {
-        int(area_id): theme_scores
-        for area_id, theme_scores in direct_scores.items()
-    }
-
-    ### 2 ### TODA A HIERARQUIA DA ÁREA
+    # === 4️⃣ Mapa de filhos (hierarquia)
     children_map = {}
     for _, row in df_areas.iterrows():
         parent = row["area_parent"]
@@ -1650,43 +1665,90 @@ def comment_score_calc(survey_id, df_areas):
         if parent is not None:
             children_map.setdefault(parent, []).append(child)
 
-    # Mapeamento final com score total
-    final_scores = {}
+    def _descendants(aid, tree):
+        filhos = tree.get(aid, [])
+        todos = []
+        for filho in filhos:
+            todos.append(filho)
+            todos.extend(_descendants(filho, tree))
+        return todos
+
+    # === 5️⃣ Nota total (área + descendentes) com divisão pelo nº de áreas
+    rows = []
 
     for _, area_row in df_areas.iterrows():
-        aid = int(area_row["area_id"])
+        area_id = area_row["area_id"]
+        filhos = _descendants(area_id, children_map)
+        todos_ids = [area_id] + filhos
+        num_areas = len(todos_ids)
 
-        # Lista de todas as áreas na cadeia da atual
-        descendants = _descendants(aid, children_map)
+        df_sub = df_perception[df_perception["perception_area_id"].isin(todos_ids)]
 
-        # Filtra percepções de toda a cadeia
-        df_cadeia = df_perception[df_perception["perception_area_id"].isin(descendants)]
+        if df_sub.empty:
+            continue
 
-        # Agrupa e calcula média dos scores por tema
-        df_grouped_total = (
-            df_cadeia
-            .groupby(["perception_area_id", "perception_theme"])["score"]
-            .mean()
-            .to_dict()
+        df_total = (
+            df_sub
+            .groupby(["perception_theme", "perception_intension"])
+            .size()
+            .reset_index(name="volume")
         )
+        df_total["nota_parcial"] = df_total["volume"] * df_total["perception_intension"].map(perception_weights)
 
-        # Monta estrutura final: direto + total
-        final_scores[aid] = {
-            "direto": direct_scores.get(aid, {}),
-            "total": df_grouped_total
-        }
+        df_total_final = (
+            df_total
+            .groupby("perception_theme")["nota_parcial"]
+            .sum()
+            .reset_index()
+        )
+        df_total_final["area_id"] = area_id
+        df_total_final["nota_total_bruta"] = df_total_final["nota_parcial"] #/ num_areas
+        df_total_final = df_total_final[["area_id", "perception_theme", "nota_total_bruta"]]
+        df_total_final = df_total_final.rename(columns={"perception_theme": "theme_name"})
 
-    ### 3 ### NORMALIZAÇÃO (0 a 100)
-    min_val, max_val = -2, 2
-    for aid, area_scores in final_scores.items():
-        for level in ["direto", "total"]:
-            normalized = {}
-            for theme, score in area_scores.get(level, {}).items():
-                normalized[theme] = ((score - min_val) / (max_val - min_val)) * 100
-            area_scores[level] = normalized
+        rows.extend(df_total_final.to_dict("records"))
 
-    return final_scores
+    df_total_bruta = pd.DataFrame(rows)
 
+    # === 6️⃣ Merge direto + total
+    df_final = pd.merge(
+        df_direto_final,
+        df_total_bruta,
+        on=["area_id", "theme_name"],
+        how="outer"
+    )
+
+    # === 7️⃣ Normalização (mantendo nulos)
+    all_scores = pd.concat([
+        df_final["nota_direta_bruta"].dropna(),
+        df_final["nota_total_bruta"].dropna()
+    ])
+
+    min_score = all_scores.min()
+    max_score = all_scores.max()
+    range_score = max_score - min_score if max_score != min_score else 1
+
+    def normalizar(valor):
+        if pd.isnull(valor):
+            return None
+        return round((valor - min_score) / range_score * 100, 2)
+
+    df_final["direto"] = df_final["nota_direta_bruta"].apply(normalizar)
+    df_final["total"] = df_final["nota_total_bruta"].apply(normalizar)
+
+    # === 8️⃣ Resultado final
+    df_final = df_final[["area_id", "theme_name", "direto", "total"]]
+
+    print("###### RESULTADO FINAL COM CÁLCULO INTENSÃO × VOLUME ######")
+    print(df_final)
+
+    return df_final
+
+
+
+
+
+#OK
 def get_theme_ranking (survey_id):
     df_theme_ranking = get_themes_score(survey_id)
     ranking_total = calculate_theme_ranking(df_theme_ranking)
@@ -1709,6 +1771,7 @@ def calculate_theme_ranking(df_theme_ranking):
     )
     return df
 
+#OK
 def calculate_theme_average(df_theme_ranking, survey_id):
     df = df_theme_ranking.copy()
 

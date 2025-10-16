@@ -267,26 +267,35 @@
 <body>
 
   <!-- Top Navbar -->
-  <nav class="blue">
+  <nav class="blue" style="position:fixed;">
     <div class="nav-wrapper">
-      <a href="#!" class="brand-logo brand">Clima Organizacional</a>
+      <a href="#!" class="brand-logo brand" style="margin-left: 20px;"> Synapse de Clima</a>
       <a href="#" data-target="side-menu" class="sidenav-trigger"><i class="material-icons">menu</i></a>
     </div>
   </nav>
 
   <!-- Side Menu -->
-  <ul id="side-menu" class="sidenav sidenav-fixed">
-    <li>
-      <div class="user-view">
-        <div class="background blue lighten-1"></div>
-        <a href="#!"><span class="white-text name">Menu</span></a>
-        <a href="#!"><span class="white-text email">Selecione uma ação</span></a>
-      </div>
-    </li>
+  <ul id="side-menu" class="sidenav sidenav-fixed" style="margin-top: 65px;">
+    
+
     <li><a href="#section-dashboard" class="menu-link active-link"><i class="material-icons">dashboard</i>Dashboard</a></li>
-    <li><a href="#section-new-survey" class="menu-link"><i class="material-icons">note_add</i>Cadastrar nova pesquisa</a></li>
-    <li><a href="#section-area-review" class="menu-link"><i class="material-icons">description</i>Gerar resumos</a></li>
-    <li><a href="#section-plan" class="menu-link"><i class="material-icons">description</i>Gerar planos de ação</a></li>
+
+    <!-- Admin Collapsible -->
+    <li>
+      <ul class="collapsible collapsible-accordion">
+        <li>
+          <a class="collapsible-header"><i style="margin-left: 15px;" class="material-icons">settings</i>Admin</a>
+          <div class="collapsible-body">
+            <ul>
+              <li><a href="#section-new-survey" class="menu-link">Cadastrar nova pesquisa</a></li>
+              <li><a href="#section-area-review" class="menu-link">Gerar resumos</a></li>
+              <li><a href="#section-plan" class="menu-link">Gerar planos de ação</a></li>
+              <li><a href="#section-config" class="menu-link">Configurações</a></li>
+            </ul>
+          </div>
+        </li>
+      </ul>
+    </li>
   </ul>
 
   <main class="container-wrap" style="margin-left: 300px; max-width: 1100px;">
@@ -333,7 +342,6 @@
             </div>
           </div>
 
-
         </div>
       </div>
     </section>
@@ -346,31 +354,30 @@
 
           <!-- FORM: envia para /classifica_comentarios_async com SSE e checklist -->
           <form id="async-upload-form" enctype="multipart/form-data">
-            <!-- ===================== Configuração ===================== -->
-            <h6 class="section-title blue-text text-darken-2">Configuração</h6>
+
             <div class="row">
+              
               <div class="input-field col s12 m6">
                 <input id="nome-pesquisa" name="nome_pesquisa" type="text"/>
                 <label for="nome-pesquisa">Nome da pesquisa</label>
                 <div class="helper">Ex.: Clima Organizacional 2025</div>
               </div>
-
-              <div class="input-field col s12 m6">
-                <input id="data-pesquisa" name="data_pesquisa" type="text" class="datepicker"/>
-                <label for="data-pesquisa">Data da pesquisa</label>
-                <div class="helper">Selecione no calendário</div>
+                
+              <div class="input-field col s6 m3">
+                <input id="org-top" name="org_top" type="number"/>
+                <div class="helper">*Top limit</div>
               </div>
+                
+              <div class="input-field col s6 m3">
+                <input id="org-bottom" name="org_bottom" type="number"/>
+                <div class="helper">*Bottom limit</div>
+              </div>
+              
             </div>
 
             <div class="row">
-              <div class="input-field col s6 m3">
-                <input id="org-top" name="org_top" type="number" step="1" min="0"/>
-                <label for="org-top">Organograma top limit</label>
-              </div>
-              <div class="input-field col s6 m3">
-                <input id="org-bottom" name="org_bottom" type="number" step="1" min="0"/>
-                <label for="org-bottom">Organograma bottom limit</label>
-              </div>
+              <input id="perguntas_abertas" name="perguntas_abertas"  type="text"/>
+              <div class="helper">*ID das questões abertas separados por vírgula. Ex: 1, 13, 18, 33...</div>
             </div>
 
             <div class="divider"></div>
@@ -435,8 +442,7 @@
             </div>
 
             <div class="divider"></div>
-
-
+            
             <div class="file-section">
               <div class="file-field input-field">
                 <div class="btn btn-block">
@@ -499,7 +505,7 @@
               <div class="input-field col s12 m6">
                 <input id="survey-id-input" name="survey_id" type="number" min="1" required>
                 <label for="survey-id-input">ID da pesquisa (survey_id)</label>
-                <div id="survey-id-helper" class="helper">Informe um survey_id existente.</div>
+                <div id="survey-id-helper" class="helper">Informe um survey_id    .</div>
               </div>
             </div>
 
@@ -557,6 +563,17 @@
         </div>
       </div>
     </section>
+
+    <!-- Seção: Configurações -->
+    <section id="section-config" class="hidden">
+      <div class="card z-depth-1">
+        <div class="card-content">
+          <span class="card-title section-header">Configurações</span>
+          <p class="helper">Aqui você poderá adicionar futuras opções de configuração do sistema.</p>
+        </div>
+      </div>
+    </section>
+
   </main>
 
   <!-- Modal: Loading + Checklist (apenas para Cadastrar nova pesquisa) -->
@@ -850,7 +867,7 @@
               M.FormSelect.init(container.querySelectorAll('select'));
             }
 
-            if (page === 'area') {
+            if ( page === 'area') {
               wireAreasForm(container);
             } else if (window.M && M.FormSelect) {
               // caso outras abas também tenham selects
@@ -863,10 +880,13 @@
           });
       }
 
-
       // ===== Materialize inits
       const sidenavs = document.querySelectorAll('.sidenav');
       M.Sidenav.init(sidenavs, { edge: 'left' });
+      
+      const collapsibles = document.querySelectorAll('.collapsible');
+      M.Collapsible.init(collapsibles);
+
 
       const datepickers = document.querySelectorAll('.datepicker');
       M.Datepicker.init(datepickers, {
@@ -891,7 +911,9 @@
         newSurvey: document.getElementById('section-new-survey'),
         areaReview: document.getElementById('section-area-review'),
         Plan: document.getElementById('section-plan'),
+        config: document.getElementById('section-config')
       };
+
       links.forEach(link => {
         link.addEventListener('click', (e) => {
           e.preventDefault();
@@ -902,11 +924,45 @@
           sections.areaReview.classList.add('hidden');
           sections.Plan.classList.add('hidden');
           sections.dashboard.classList.add('hidden');
+          sections.config.classList.add('hidden');
 
           const target = link.getAttribute('href');
           if (target === '#section-new-survey') sections.newSurvey.classList.remove('hidden');
           if (target === '#section-area-review') sections.areaReview.classList.remove('hidden');
           if (target === '#section-plan') sections.Plan.classList.remove('hidden');
+          if (target === '#section-config') sections.config.classList.remove('hidden');
+
+          /*CONFIG*/
+          if (target === '#section-config') {
+            sections.config.classList.remove('hidden');
+
+            // Carrega o conteúdo HTML dinamicamente via fetch
+            fetch('/config')
+              .then(r => r.text())
+              .then(html => {
+                const targetEl = document.getElementById('section-config');
+                targetEl.innerHTML = html;
+
+                // Aguarda o DOM ser atualizado antes de inicializar Materialize
+                requestAnimationFrame(() => {
+                  // Atualiza labels
+                  M.updateTextFields();
+
+                  // Atualiza textareas com valor preenchido
+                  targetEl.querySelectorAll('textarea').forEach(el => {
+                    M.textareaAutoResize(el); // Agora com elemento individual
+                  });
+                });
+              })
+              .catch(err => {
+                console.error("Erro ao carregar config:", err);
+                document.getElementById('section-config').innerHTML = `<p class="red-text">Erro ao carregar configurações.</p>`;
+              });
+
+          }
+
+          
+          /*DASHBOARD*/
           if (target === '#section-dashboard') {
             sections.dashboard.classList.remove('hidden');
 
@@ -988,10 +1044,10 @@
       pessoasInput.addEventListener('change', checkFiles);
 
       const STEPS = [
-        "1 - lendo arquivos (csv)...",
-        "Ler arquivos (CSV)",
-        "Normalizar respostas (df_final)",
-        "Inserir áreas/hierarquia",
+        "1 - lendo arquivos (csv)",
+        "2 - criando survey",
+        "3 - inserindo employees",
+        "4 - Inserindo áreas e definindo organograma",
         "Inserir funcionários",
         "Inserir questões e comentários",
         "Classificar percepções",

@@ -1,0 +1,63 @@
+<div class="card z-depth-1">
+    <div class="card-content">
+    <form id="company-config-form" class="row" action="/config/save" method="POST" style="margin-bottom: 0;">
+        <input type="hidden" name="survey_id" value="{{ data.get('survey_id', '') }}"/>
+   
+        <div class="col s12">
+            <span class="card-title section-header">Configurações da Empresa</span>
+            
+        </div>
+                <!-- Campo: Sobre a empresa -->
+        <div class="input-field col s12">
+            <textarea id="sobre_empresa" name="sobre_empresa" class="materialize-textarea">{{ data.get('sobre_empresa', '') }}</textarea>
+            <label for="sobre_empresa">Sobre a Empresa</label>
+        </div>
+
+        <!-- Campo: Valores -->
+        <div class="input-field col s12">
+            <textarea id="valores" name="valores" class="materialize-textarea">{{ data.get('valores', '') }}</textarea>
+            <label for="valores">Valores</label>
+        </div>
+
+        <!-- Campo: Políticas -->
+        <div class="input-field col s12">
+            <textarea id="politicas" name="politicas" class="materialize-textarea">{{ data.get('politicas', '') }}</textarea>
+            <label for="politicas">Políticas</label>
+        </div>
+
+        <!-- Campo: Canais de comunicação -->
+        <div class="input-field col s12">
+            <textarea id="canais_comunicacao" name="canais_comunicacao" class="materialize-textarea">{{ data.get('canais_comunicacao', '') }}</textarea>
+            <label for="canais_comunicacao">Canais de Comunicação</label>
+        </div>
+
+        <!-- Campo: Armazenamento de informação -->
+        <div class="input-field col s12">
+            <textarea id="armazenamento_info" name="armazenamento_info" class="materialize-textarea">{{ data.get('armazenamento_info', '') }}</textarea>
+            <label for="armazenamento_info">Armazenamento de Informação</label>
+        </div>
+
+        <!-- Campo: Ações do RH -->
+        <div class="input-field col s12">
+            <textarea id="acoes_rh" name="acoes_rh" class="materialize-textarea">{{ data.get('acoes_rh', '') }}</textarea>
+            <label for="acoes_rh">Ações do RH</label>
+        </div>
+
+        <!-- Campo: Métricas -->
+        <div class="input-field col s12">
+            <textarea id="metricas" name="metricas" class="materialize-textarea">{{ data.get('metricas', '') }}</textarea>
+            <label for="metricas">Métricas</label>
+        </div>
+
+        <!-- Botão de envio -->
+        <div class="col s12 right-align" style="margin-top: 12px;">
+            <button type="submit" class="btn blue waves-effect waves-light">
+                Salvar Configurações
+            </button>
+        </div>
+
+
+    </form>
+</div>
+</div>
+</div>

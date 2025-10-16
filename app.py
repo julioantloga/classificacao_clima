@@ -14,13 +14,18 @@ from service.comment_repository import (
 from service.classification_service import (
     data_preprocessing,
     persist_questions_and_comments,
-    define_category_themes,
     save_themes_score
+)
+
+from service.config import (
+    get_survey_config,
+    update_survey_config
 )
 
 from service.person_service import person_preprocessing
 
 from service.survey_repository import (
+    list_surveys,
     insert_survey,
     get_survey,
     get_comments_with_perceptions,
@@ -33,34 +38,40 @@ from service.areas_repository import (
     insert_areas,
     fetch_survey_areas_with_intents,
     update_theme_ranking_scores,
+    get_area_weights
 )
 
 from service.person_repository import (
     insert_person
 )
 
-from service.perception_service import classify_and_save_perceptions
+from service.perception_service import (
+    classify_and_save_perceptions,
+    get_theme_perceptions
+    )
 
 from service.areas_service import (
     create_organizational_chart,
-    compute_and_update_area_metrics_python,
     generate_and_save_area_reviews,
     get_themes_intents,
     comment_score_calc,
     get_theme_ranking,
     calculate_theme_average,
+    closed_question_classification
     
 )
 
 from service.general_review import (
     generate_and_save_general_review,
-    get_ranking_area,
-    get_ranking_general_themes,
     save_general_ranking,
     get_comment_clippings_for_critical_themes,
     generate_action_plans,
     get_general_action_plan
 )
+
+#PERGUNTAS
+#piloto Mind = [1,18]
+#pesquisa Mind = [165,166,167,168,169,170,171,172,175,176,178,179,181,182,183,184,185,187,188,191,192,193,195,196,200,203,204,241,242,243]
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
@@ -111,12 +122,73 @@ def read_csv_flex(src):
 def home():
     return send_from_directory("static", "index.html")
 
+### CONFIGURAÇÂO ##############################################
+
+@app.route("/config")
+def config():
+
+    survey_id = 2
+
+    data = get_survey_config(survey_id)
+
+    print("Dados enviados ao template:")
+    print(data)
+    
+    return render_template("config.html", data=data)
+
+@app.route("/config/save", methods=["POST"])
+def save_config():
+    
+    data = {
+        "survey_id": request.form.get("survey_id"),
+        "sobre_empresa": request.form.get("sobre_empresa", ""),
+        "valores": request.form.get("valores", ""),
+        "politicas": request.form.get("politicas", ""),
+        "canais_comunicacao": request.form.get("canais_comunicacao", ""),
+        "armazenamento_info": request.form.get("armazenamento_info", ""),
+        "acoes_rh": request.form.get("acoes_rh", ""),
+        "metricas": request.form.get("metricas", "")
+    }
+
+    if not data["survey_id"]:
+        return "survey_id é obrigatório", 400
+    
+    survey_id = update_survey_config(data)
+    data = get_survey_config(survey_id)
+
+    return render_template("config.html", data=data)
+
+
+
+### SURVEYS ####################################################
+
+# Pega lista de surveys
 @app.route('/api/surveys')
 def api_surveys():
-    from service.survey_repository import list_surveys
     surveys = list_surveys()
     return jsonify(surveys)
 
+# Verifica se survey existe
+@app.get("/api/survey_exists")
+def api_survey_exists():
+    sid = request.args.get("survey_id", type=int)
+    if not sid:
+        return jsonify({"exists": False}), 200
+    with engine.begin() as conn:
+        row = conn.execute(text("SELECT 1 FROM survey WHERE survey_id = :sid"), {"sid": sid}).first()
+    return jsonify({"exists": bool(row)}), 200
+
+@app.get("/api/survey_exists/<int:sid>")
+def api_survey_exists_path(sid: int):
+    with engine.begin() as conn:
+        row = conn.execute(text("SELECT 1 FROM survey WHERE survey_id = :sid"), {"sid": sid}).first()
+    return jsonify({"exists": bool(row)}), 200
+
+
+
+### ROTAS DA DASHBOARD #######################################
+
+# Abas
 @app.route('/dashboard/<page>')
 def dashboard_page(page):
 
@@ -129,10 +201,21 @@ def dashboard_page(page):
             if pd.isna(text):
                 return '—'
             return markdown.markdown(text, extensions=['extra'])
-
+ 
         data = get_general_action_plan(survey_id)
+        themes = data['theme_name']
+        theme_metrics = get_theme_perceptions(survey_id, themes)
+        print("data columns:", data.columns.tolist())
+        print("theme_metrics columns:", theme_metrics.columns.tolist())
+
+        data = data.merge(
+            theme_metrics[["theme_name","score_medio", "dissatisfied_score_medio", "comment_score_medio"]],
+            on="theme_name",
+            how="left"
+        )
+
         data['action_plan'] = data['action_plan'].apply(markdown_to_html)
-        #data['action_plan'] = data['action_plan'].str.replace('\n', '<br>', regex=False)
+
         data = data.to_dict(orient="records")
         return render_template("overview.html",survey=survey, data=data)
     
@@ -162,30 +245,6 @@ def dashboard_page(page):
                 selected_intention = selected_intention,
                 themes_intents_data = themes_intents_data
             )
-
-
-#Busca o resumo por área 
-@app.route('/dashboard/areas/search', methods=['GET'])
-def dashboard_areas_search():
-    survey_id = request.args.get("survey_id", type=int)
-    area_raw = request.args.get("area", default="")
-    selected_area = int(area_raw) if area_raw not in (None, "",) else 0  # vazio => 0
-
-    survey = get_survey(survey_id)
-    areas = list_areas_with_non_null_score(survey_id)
-    data = get_area_review_plan(area_id=selected_area, survey_id=survey_id) 
-    
-    # Gráfico de temas x intenções
-    themes_intents_df = get_themes_intents(area_id=selected_area, survey_id=survey_id) if selected_area else None
-    themes_intents_data = themes_intents_df.to_dict(orient='records') if themes_intents_df is not None else []
-    
-    return render_template("area.html",
-                           survey=survey,
-                           areas=areas,
-                           data=data,
-                           selected_area=selected_area,
-                           themes_intents_data=themes_intents_data)
-
 
 #Busca de comentários 
 @app.route('/dashboard/comments/search', methods=['GET'])
@@ -223,7 +282,10 @@ def dashboard_comments_search():
                            themes_intents_data = themes_intents_data)
 
 
-#Descartes
+
+### CLASSIFICAÇÃO DE COMENTÁRIOS #############################
+
+# Inicia e chama o worker 
 @app.route("/classifica_comentarios", methods=["POST"])
 def classifica_comentarios_route():
     if "campanha" not in request.files or "pessoas" not in request.files:
@@ -252,12 +314,14 @@ def classifica_comentarios_route():
             "nome_pesquisa": request.form.get("nome_pesquisa"),            
             "org_top": request.form.get("org_top", type=int),
             "org_bottom": request.form.get("org_bottom", type=int),
-        }
+            "perguntas_abertas": request.form.get("perguntas_abertas", type=str)
+        } 
 
         survey_id = insert_survey(config.get("nome_pesquisa"))
-
+        perguntas_abertas = config.get("perguntas_abertas")
+        
         # Limpa e organiza os dados da campanha antes de rodarmos as classificações
-        df_processed = data_preprocessing(df_campanha, df_person, survey_id)
+        df_processed = data_preprocessing(df_campanha, df_person, survey_id, perguntas_abertas)
 
         # Salva as áreas e hierarquia na base de dados 
         df_areas = create_organizational_chart(df_instancia_areas, df_hierarquia_areas, survey_id)
@@ -268,8 +332,8 @@ def classifica_comentarios_route():
         employee_update = insert_person(df_employee)
 
         # Salva as questões e os comentários na base de dados
-        df_comments = data_preprocessing(df_campanha, df_person, survey_id)
-        persist_stats = persist_questions_and_comments(df_comments)
+        df_comments = data_preprocessing(df_campanha, df_person, survey_id, perguntas_abertas)
+        persist_questions_and_comments(df_comments)
         
         temas = [
             "Sem tema",
@@ -292,12 +356,12 @@ def classifica_comentarios_route():
             "Preconceito"
         ]
 
-        stats = classify_and_save_perceptions(
+        classify_and_save_perceptions(
             survey_id=survey_id,
             temas=temas,
-            model="gpt-4o",          # ou "gpt-4o-mini" para custo menor
+            model="gpt-4o",
             temperature=0.0,
-            clear_existing=False     # True se quiser limpar percepções do survey antes
+            clear_existing=False
         )
 
         # Monta tabela HTML (limitando para não pesar a página)
@@ -354,6 +418,7 @@ def classifica_comentarios_async():
         "nome_pesquisa": request.form.get("nome_pesquisa"),
         "org_top": request.form.get("org_top", type=int),
         "org_bottom": request.form.get("org_bottom", type=int),
+        "perguntas_abertas": request.form.get("perguntas_abertas", type=str)
     }
 
     # Salva arquivos temporários
@@ -374,14 +439,49 @@ def classifica_comentarios_async():
 
     return jsonify({"job_id": job_id})
 
-
-#Classifica os Comentários e analisa os dados
 @app.get("/events/<job_id>")
 def sse_events(job_id: str):
     def generate():
         for chunk in progress_bus.stream(job_id):
             yield chunk
     return Response(generate(), mimetype="text/event-stream")
+
+
+
+
+### GERA PLANOS DE AÇÃO ################################## 
+
+@app.post("/generate_plans_async")
+def generate_plans_async():
+    
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        survey_id = int(data.get("survey_id"))
+        overwrite = bool(data.get("overwrite", False))
+    except Exception:
+        return jsonify({"error": "Payload inválido"}), 400
+
+    if not survey_id or survey_id < 1:
+        return jsonify({"error": "survey_id inválido"}), 400
+
+    job_id = str(uuid.uuid4())
+    progress_bus.open(job_id)
+    # dispara thread do worker
+    t = threading.Thread(target=_worker_plans, args=(job_id, survey_id, overwrite), daemon=True)
+    t.start()
+
+    return jsonify({"job_id": job_id}), 202
+
+@app.get("/plan_events/<job_id>")
+def plan_events(job_id: str):
+    def generate():
+        for chunk in progress_bus.stream(job_id):
+            yield chunk
+    return Response(generate(), mimetype="text/event-stream")
+
+
+
+### WORKERS #############################################
 
 def _worker_pipeline(job_id: str, paths: dict, config: dict):
     """
@@ -393,6 +493,8 @@ def _worker_pipeline(job_id: str, paths: dict, config: dict):
 
         min_lvl = int(config.get("org_top") or 0)
         max_lvl = int(config.get("org_bottom") or 999)
+        perguntas_abertas = config.get("perguntas_abertas")
+
         temas = [
             "Sem tema",
             "Liderança e Gestão",
@@ -424,59 +526,127 @@ def _worker_pipeline(job_id: str, paths: dict, config: dict):
             df_notas_areas    = read_csv_flex(paths["nota_areas"])
             df_notas_categorias    = read_csv_flex(paths["nota_categorias"])
 
-
             return df_campanha, df_person, df_instancia_areas, df_hierarquia_areas, df_person_areas, df_notas_areas, df_notas_categorias
         
-        (df_campanha, df_person, df_instancia_areas, df_hierarquia_areas, df_person_areas, df_notas_areas, df_notas_categorias) = timed_step(job_id, "1 - lendo arquivos (csv)...", _read_csvs)
+        (df_campanha, df_person, df_instancia_areas, df_hierarquia_areas, df_person_areas, df_notas_areas, df_notas_categorias) = timed_step(job_id, "1 - lendo arquivos (csv)", _read_csvs)
         
         # 1) Survey
         def _survey():
             name = config.get("nome_pesquisa")
             return insert_survey(name)
 
-        survey_id = timed_step(job_id, "1 - criando pesquisa...", _survey)
+        survey_id = timed_step(job_id, "2 - criando survey", _survey)
         progress_bus.put(job_id, {"event": "survey", "survey_id": survey_id}) #check na barra de progresso
-
 
         # 2) Pessoas (alocação ativa)
         def _people():
             #normaliza data frame
             df_employee = person_preprocessing(df_person, df_person_areas, survey_id)
             #insere employees na base de dados
-            count = insert_person(df_employee)
-            return df_employee, count
+            insert_person(df_employee)
+            return df_employee
         
-        (df_employee, count_employee) = timed_step(job_id, "2 - inserindo funcionários...", _people)
-        progress_bus.put(job_id, {"event": "person", "funcionários adicionados": count_employee}) #check na barra de progresso
+        df_employee = timed_step(job_id, "3 - inserindo employees", _people)
+        progress_bus.put(job_id, {"event": "person", "funcionários adicionados": "OK"}) #check na barra de progresso
 
         # 3) Áreas (instância + hierarquia)
         def _areas():
             # normaliza data frame e organiza hierarquia de áreas
             df_areas = create_organizational_chart(df_instancia_areas, df_hierarquia_areas, survey_id)
             # insere áreas na base de dados
-            count = insert_areas(df_areas)    
-            return df_areas, count
+            insert_areas(df_areas)
+            return df_areas
         
-        df_areas, areas_count = timed_step(job_id, "Inserindo áreas e definindo organograma...", _areas)
-        progress_bus.put(job_id, {"event": "area", "Áreas adicionadas": areas_count}) #check na barra de progresso
-
-        # 4) Monta base de temas por área
-        def _themes():
-            df_area_category = df_notas_categorias[["categoria"]].drop_duplicates().reset_index(drop=True)
-            return define_category_themes (df_area_category, temas)
-
-        df_category_themes = timed_step(job_id, "Atribuindo categorias aos temas...", _themes)
-
-        df_notas_theme = df_notas_categorias.merge(
-            df_category_themes,     # DataFrame com categoria e tema
-            on="categoria",         # coluna em comum
-            how="left"              # mantém todas as linhas de df_notas_categorias
+        df_areas = timed_step(job_id, "4 - Inserindo áreas e definindo organograma", _areas)
+        progress_bus.put(job_id, {"event": "area", "Áreas adicionadas": "OK"}) #check na barra de progresso
+     
+        df_perguntas_fechadas = (
+            df_notas_areas[['pergunta']]
+            .drop_duplicates()
+            .reset_index(drop=True)
         )
 
-        save_themes_score (df_notas_theme, survey_id)
-        progress_bus.put(job_id, {"event": "themes", "Temas classificados": "-"}) #check na barra de progresso
+        tema_perguntas_fechadas = []
         
-        # 4) Pré-processar campanha → df_final
+        for pergunta in df_perguntas_fechadas['pergunta']:
+            
+            tema = timed_step(job_id, f"""Classificando questao: {pergunta}""", closed_question_classification, pergunta, temas)
+            tema_perguntas_fechadas.append((pergunta, tema))
+            time.sleep(1.2)
+
+            progress_bus.put(job_id, {"event": "perguntas classificadas", "message": tema_perguntas_fechadas})
+
+        #garante o df
+        df_areas_perguntas_fechadas = pd.DataFrame(tema_perguntas_fechadas, columns=["pergunta", "tema"])
+        
+        df_notas_areas = df_notas_areas.merge(
+            df_areas_perguntas_fechadas,
+            on="pergunta",
+            how="left"
+        )[["area_id", "pergunta", "tema", "porcentagem insatisfeitos", "nota", "nota diretos", "nota da empresa", "porcentagem insatisfeitos diretos"]]
+
+        #Prepara as notas para calcular as médias
+        df_notas_areas['nota'] = pd.to_numeric(df_notas_areas['nota'], errors="coerce")
+        df_notas_areas['nota'] = df_notas_areas['nota'].apply(lambda x: None if pd.isna(x) else x)
+
+        df_notas_areas['nota diretos'] = pd.to_numeric(df_notas_areas['nota diretos'], errors="coerce")
+        df_notas_areas['nota diretos'] = df_notas_areas['nota diretos'].apply(lambda x: None if pd.isna(x) else x)
+
+        # Normaliza de 0-5 para 0-100
+        df_notas_areas['nota'] = df_notas_areas['nota'].where(df_notas_areas['nota'] > 5, df_notas_areas['nota'] * 20)
+        df_notas_areas['nota diretos'] = df_notas_areas['nota diretos'].where(df_notas_areas['nota diretos'] > 5, df_notas_areas['nota diretos'] * 20)
+
+        # Normaliza de 0-4 para 0-100
+        df_notas_areas['nota'] = df_notas_areas['nota'].where(df_notas_areas['nota'] > 4, df_notas_areas['nota'] * 25)
+        df_notas_areas['nota diretos'] = df_notas_areas['nota diretos'].where(df_notas_areas['nota diretos'] > 4, df_notas_areas['nota diretos'] * 25)
+
+        #Prepara a % de insatisfeitos para calcular as médias
+        df_notas_areas['porcentagem insatisfeitos'] = (pd.to_numeric(df_notas_areas['porcentagem insatisfeitos'], errors="coerce").fillna(0))
+        df_notas_areas['porcentagem insatisfeitos diretos'] = (pd.to_numeric(df_notas_areas['porcentagem insatisfeitos diretos'], errors="coerce").fillna(0))
+        
+        #calcula o peso de cada área para aplicar a média ponderada
+        df_pesos_area = get_area_weights(survey_id)
+
+        # Juntar pesos na df_notas_areas
+        df_notas_areas = df_notas_areas.merge(
+            df_pesos_area[["employee_area_id", "peso"]],
+            left_on="area_id",
+            right_on="employee_area_id",
+            how="left"
+        ).drop(columns=["employee_area_id"])
+
+        df_nota_area_temas = (
+            df_notas_areas
+            .groupby(["area_id", "tema"])
+            .apply(lambda g: pd.Series({
+                "nota": (
+                    (g["nota"] * g["peso"]).sum() / g["peso"].sum()
+                    if g["nota"].notna().any() and g["peso"].notna().any() and g["peso"].sum() > 0
+                    else None
+                ),
+                "nota_diretos": (
+                    (g["nota diretos"] * g["peso"]).sum() / g["peso"].sum()
+                    if g["nota diretos"].notna().any() and g["peso"].notna().any() and g["peso"].sum() > 0
+                    else None
+                ),
+                "porcentagem_insatisfeitos": (
+                    (g["porcentagem insatisfeitos"] * g["peso"]).sum() / g["peso"].sum()
+                    if g["porcentagem insatisfeitos"].notna().any() and g["peso"].notna().any() and g["peso"].sum() > 0
+                    else None
+                ),
+                "porcentagem_insatisfeitos_diretos": (
+                    (g["porcentagem insatisfeitos diretos"] * g["peso"]).sum() / g["peso"].sum()
+                    if g["porcentagem insatisfeitos diretos"].notna().any() and g["peso"].notna().any() and g["peso"].sum() > 0
+                    else None
+                ),
+            }))
+            .reset_index()
+        )
+       
+        save_themes_score (df_nota_area_temas, survey_id)
+        progress_bus.put(job_id, {"event": "themes", "Temas classificados": "-"})
+        
+        # 5) Pré-processar campanha → df_final
 
         # Completar e-mails na df_campanha a partir do Nome e Sobrenome
         df_temp = pd.merge(
@@ -492,17 +662,17 @@ def _worker_pipeline(job_id: str, paths: dict, config: dict):
             df_temp['email']
         )
 
-        df_processed = timed_step(job_id, "Normalizar respostas (df_final)", data_preprocessing, df_campanha, survey_id, df_employee)
+        df_processed = timed_step(job_id, "Normalizar respostas (df_final)", data_preprocessing, df_campanha, survey_id, df_employee, perguntas_abertas)
            
         # 6) Perguntas + Comentários
         q_c_stats = timed_step(job_id, "Inserir questões e comentários", persist_questions_and_comments, df_processed)
         progress_bus.put(job_id, {"event": "stats", "scope": "questions_comments", "data": q_c_stats})
 
-        # 7) Classificar Percepções
+        #7) Classificar Percepções
         perc_stats = timed_step(job_id, "Classificar percepções", classify_and_save_perceptions, survey_id, temas, "gpt-4o", 0.0, False)
         progress_bus.put(job_id, {"event": "stats", "scope": "perceptions", "tokens_saida": "completion_tokens", "data": perc_stats})
 
-        # 8) Calcula nota dos comentários do tema
+        #8) Calcula nota dos comentários do tema
         def _themes_by_comment():
             
             scores = comment_score_calc(survey_id, df_areas)
@@ -521,51 +691,7 @@ def _worker_pipeline(job_id: str, paths: dict, config: dict):
         
         ranking_final = timed_step(job_id, "Calculando nota dos comentários...", _themes_by_comment)
         save_general_ranking(ranking_final)
-
-        # 8) Calcular scores de áreas (Python)
-        min_commenters = 3
-        areas_upd = timed_step(job_id, "Calcular o scores de áreas",compute_and_update_area_metrics_python,survey_id, df_notas_areas, min_lvl, max_lvl, min_commenters)
-        progress_bus.put(job_id, {"event": "stats", "scope": "area_metrics_py", "data": {"areas_atualizadas": areas_upd}})
-
-        # 9) Classificar perguntas fechadas da pesquisa por tema
-
-        # df_perguntas_fechadas = (
-        #     df_notas_areas[['pergunta']]
-        #     .drop_duplicates()
-        #     .reset_index(drop=True)
-        # )
         
-        # tema_perguntas_fechadas = []
-        
-        # for pergunta in df_perguntas_fechadas['pergunta']:
-            
-        #     tema = timed_step(job_id, f"""Classificando questao: {pergunta}""", closed_question_classification, pergunta, temas_perguntas)
-        #     tema_perguntas_fechadas.append((pergunta, tema))
-        #     time.sleep(1.2)
-        #     progress_bus.put(job_id, {"event": "perguntas classificadas", "message": tema_perguntas_fechadas})
-
-        # #garante o df
-        # df_areas_perguntas_fechadas = pd.DataFrame(tema_perguntas_fechadas, columns=["pergunta", "tema"])
-
-        # df_notas_areas = df_notas_areas.merge(
-        #     df_areas_perguntas_fechadas,
-        #     on='pergunta',
-        #     how='left'
-        # )
-
-        # df_notas_areas['nota'] = pd.to_numeric(df_notas_areas['nota'])
-        
-        # df_nota_area_temas = (
-        #     df_notas_areas
-        #     .dropna(subset=['nota', 'tema'])  # Remove linhas sem nota ou sem tema
-        #     .groupby(['area_id', 'tema'], as_index=False)
-        #     .agg(media=('nota', 'mean'))  # Calcula a média
-        # )
-
-        # print (df_nota_area_temas)
-
-        # progress_bus.put(job_id, {"event": "info", "message": f"Pipeline concluído com sucesso. {df_nota_area_temas}"})
-
         progress_bus.put(job_id, {"event": "info", "message": f"Pipeline concluído com sucesso."})
     
     except Exception as e:
@@ -576,88 +702,36 @@ def _worker_pipeline(job_id: str, paths: dict, config: dict):
         progress_bus.put(job_id, {"event": "done"})
         progress_bus.close(job_id)
 
-# Verifica se survey existe
-@app.get("/api/survey_exists")
-def api_survey_exists():
-    sid = request.args.get("survey_id", type=int)
-    if not sid:
-        return jsonify({"exists": False}), 200
-    with engine.begin() as conn:
-        row = conn.execute(text("SELECT 1 FROM survey WHERE survey_id = :sid"), {"sid": sid}).first()
-    return jsonify({"exists": bool(row)}), 200
-
-@app.get("/api/survey_exists/<int:sid>")
-def api_survey_exists_path(sid: int):
-    with engine.begin() as conn:
-        row = conn.execute(text("SELECT 1 FROM survey WHERE survey_id = :sid"), {"sid": sid}).first()
-    return jsonify({"exists": bool(row)}), 200
-
-
-# Dispara geração dos resumos de áreas (sincrono e simples)
-@app.post("/generate_area_reviews")
-def generate_area_reviews_route():
+def _worker_plans(job_id: str, survey_id: int, overwrite: bool):
+    """
+    Worker: gera planos de ação.
+    """
+    
     try:
-        data = request.get_json(silent=True) or {}
-        survey_id = int(data.get("survey_id"))
-        overwrite = bool(data.get("overwrite", False))
 
-        # valida se survey existe
-        with engine.begin() as conn:
-            row = conn.execute(text("SELECT 1 FROM survey WHERE survey_id = :sid"), {"sid": survey_id}).first()
-        if not row:
-            return jsonify({"error": "Pesquisa não encontrada."}), 400
+        progress_bus.put(job_id, {"event": "info", "message": "Iniciando geração de planos de ação..."})
+        
+        df_planos_de_acao = pd.read_csv("file/planos_de_acao.csv", sep=";")
+        
+        critical_themes = get_comment_clippings_for_critical_themes(survey_id)
+        predefined_plans_json = df_planos_de_acao[df_planos_de_acao["theme_name"].isin(critical_themes["theme_name"])]
+        
+        generate_action_plans(critical_themes, predefined_plans_json, survey_id)
 
-        from service.areas_service import generate_and_save_area_reviews
-        updated = generate_and_save_area_reviews(
-            survey_id=survey_id,
-            model="gpt-4o",
-            temperature=0.0,
-            overwrite=overwrite
-        )
-        return jsonify({"updated": int(updated)}), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        progress_bus.put(job_id, {"event": "error", "message": str(e)})
+    finally:
+        progress_bus.put(job_id, {"event": "done"})
+        progress_bus.close(job_id)
 
-@app.post("/generate_area_reviews_async")
-def generate_area_reviews_async():
-    """
-    Dispara geração de resumos de áreas (somente áreas com intents) em background.
-    Retorna job_id e o front abre SSE em /area_review_events/<job_id>.
-    """
-    data = request.get_json(silent=True) or {}
-    survey_id = data.get("survey_id", None)
-    overwrite = bool(data.get("overwrite", False))
 
-    try:
-        survey_id = int(survey_id)
-    except Exception:
-        return jsonify({"error": "survey_id inválido"}), 400
 
-    # valida survey existe
-    row = None
-    with engine.begin() as conn:
-        row = conn.execute(text("SELECT 1 FROM survey WHERE survey_id = :sid"), {"sid": survey_id}).first()
-    if not row:
-        return jsonify({"error": "Pesquisa não encontrada."}), 400
 
-    job_id = str(uuid.uuid4())
-    progress_bus.open(job_id)
 
-    th = threading.Thread(
-        target=_worker_area_reviews,
-        args=(job_id, survey_id, overwrite),
-        daemon=True
-    )
-    th.start()
-    return jsonify({"job_id": job_id}), 200
 
-@app.get("/area_review_events/<job_id>")
-def area_review_events(job_id: str):
-    def generate():
-        for chunk in progress_bus.stream(job_id):
-            yield chunk
-    return Response(generate(), mimetype="text/event-stream")
 
+############################################
+####ROTAS DESCONTINUADAS(NÃO CONSIDERAR)###
 def _worker_area_reviews(job_id: str, survey_id: int, overwrite: bool):
     """
     Worker: gera resumos por área (com SSE) e, em seguida, gera o resumo geral.
@@ -722,105 +796,95 @@ def _worker_area_reviews(job_id: str, survey_id: int, overwrite: bool):
         progress_bus.put(job_id, {"event": "done"})
         progress_bus.close(job_id)
 
+#Busca o resumo por área 
+@app.route('/dashboard/areas/search', methods=['GET'])
+def dashboard_areas_search():
+    survey_id = request.args.get("survey_id", type=int)
+    area_raw = request.args.get("area", default="")
+    selected_area = int(area_raw) if area_raw not in (None, "",) else 0  # vazio => 0
 
-# Dispara geração dos planos de ação 
-@app.post("/generate_plans_async")
-def generate_plans_async():
+    survey = get_survey(survey_id)
+    areas = list_areas_with_non_null_score(survey_id)
+    data = get_area_review_plan(area_id=selected_area, survey_id=survey_id) 
     
-    try:
-        data = request.get_json(force=True, silent=True) or {}
-        survey_id = int(data.get("survey_id"))
-        overwrite = bool(data.get("overwrite", False))
-    except Exception:
-        return jsonify({"error": "Payload inválido"}), 400
-
-    if not survey_id or survey_id < 1:
-        return jsonify({"error": "survey_id inválido"}), 400
-
-    job_id = str(uuid.uuid4())
-    progress_bus.open(job_id)
-    # dispara thread do worker
-    t = threading.Thread(target=_worker_plans, args=(job_id, survey_id, overwrite), daemon=True)
-    t.start()
-
-    return jsonify({"job_id": job_id}), 202
-
-@app.get("/plan_events/<job_id>")
-def plan_events(job_id: str):
+    # Gráfico de temas x intenções
+    themes_intents_df = get_themes_intents(area_id=selected_area, survey_id=survey_id) if selected_area else None
+    themes_intents_data = themes_intents_df.to_dict(orient='records') if themes_intents_df is not None else []
+    
+    return render_template("area.html",
+                           survey=survey,
+                           areas=areas,
+                           data=data,
+                           selected_area=selected_area,
+                           themes_intents_data=themes_intents_data)
+@app.get("/area_review_events/<job_id>")
+def area_review_events(job_id: str):
     def generate():
         for chunk in progress_bus.stream(job_id):
             yield chunk
     return Response(generate(), mimetype="text/event-stream")
 
-def _worker_plans(job_id: str, survey_id: int, overwrite: bool):
-    """
-    Worker: gera planos de ação.
-    """
-    
+# Dispara geração dos resumos de áreas (sincrono e simples)
+@app.post("/generate_area_reviews")
+def generate_area_reviews_route():
     try:
+        data = request.get_json(silent=True) or {}
+        survey_id = int(data.get("survey_id"))
+        overwrite = bool(data.get("overwrite", False))
 
-        progress_bus.put(job_id, {"event": "info", "message": "Iniciando geração de planos de ação..."})
-        
-        df_planos_de_acao = pd.read_csv("file/planos_de_acao.csv", sep=";")
-        
-        critical_themes = get_comment_clippings_for_critical_themes(survey_id)
-        predefined_plans_json = df_planos_de_acao[df_planos_de_acao["theme_name"].isin(critical_themes["theme_name"])]
-        
+        # valida se survey existe
+        with engine.begin() as conn:
+            row = conn.execute(text("SELECT 1 FROM survey WHERE survey_id = :sid"), {"sid": survey_id}).first()
+        if not row:
+            return jsonify({"error": "Pesquisa não encontrada."}), 400
 
-        action_plans, plan_review = generate_action_plans(critical_themes, predefined_plans_json, survey_id)
-
-        #df_plan = fetch_survey_areas_with_intents(survey_id)
-
-        # df_plan = df_plan[
-        #     (df_plan["area_id"] != 0) &
-        #     (df_plan["area_intents"].notna()) &
-        #     (df_plan["area_intents"].astype(str).str.strip() != "")
-        # ]
-
-        # if not overwrite and "action_plan" in df_plan.columns:
-        #     mask_empty = df_plan["action_plan"].isna() | (df_plan["action_plan"].astype(str).str.strip() == "")
-        #     df_plan = df_plan[mask_empty]
-
-        # progress_bus.put(job_id, {"event": "info", "message": f"Áreas a processar: {len(df_plan)}"})
-
-        # # Callback por área
-        # def on_progress(area_id: int, area_name: str, status: str, message: str = None):
-        #     payload = {
-        #         "event": "plan",
-        #         "area_id": area_id,
-        #         "area_name": area_name,
-        #         "status": status
-        #     }
-        #     if message:
-        #         payload["message"] = message
-        #     progress_bus.put(job_id, payload)
-
-        
-        # # Gera os planos de ação por área
-        # updated = generate_and_save_area_plans(
-        #     survey_id=survey_id,
-        #     model="gpt-4o",
-        #     temperature=0.0,
-        #     overwrite=overwrite,
-        #     on_progress=on_progress,
-        # )
-
-        # progress_bus.put(job_id, {"event": "info", "message": f"Planos atualizados: {updated}."})
-
-        # # gerar plano geral
-        # ok = generate_and_save_general_plan(
-        #     survey_id=survey_id,
-        #     model="gpt-4o",
-        #     temperature=0.0
-        # )
-        # progress_bus.put(job_id, {"event": "info", "message": f"Plano geral {'gerado' if ok else 'não disponível'}."})
-
+        from service.areas_service import generate_and_save_area_reviews
+        updated = generate_and_save_area_reviews(
+            survey_id=survey_id,
+            model="gpt-4o",
+            temperature=0.0,
+            overwrite=overwrite
+        )
+        return jsonify({"updated": int(updated)}), 200
     except Exception as e:
-        progress_bus.put(job_id, {"event": "error", "message": str(e)})
-    finally:
-        progress_bus.put(job_id, {"event": "done"})
-        progress_bus.close(job_id)
+        return jsonify({"error": str(e)}), 500
 
-############################################
+# Dispara geração dos resumos de áreas (Assíncrono)
+@app.post("/generate_area_reviews_async")
+def generate_area_reviews_async():
+    """
+    Dispara geração de resumos de áreas (somente áreas com intents) em background.
+    Retorna job_id e o front abre SSE em /area_review_events/<job_id>.
+    """
+    data = request.get_json(silent=True) or {}
+    survey_id = data.get("survey_id", None)
+    overwrite = bool(data.get("overwrite", False))
+
+    try:
+        survey_id = int(survey_id)
+    except Exception:
+        return jsonify({"error": "survey_id inválido"}), 400
+
+    # valida survey existe
+    row = None
+    with engine.begin() as conn:
+        row = conn.execute(text("SELECT 1 FROM survey WHERE survey_id = :sid"), {"sid": survey_id}).first()
+    if not row:
+        return jsonify({"error": "Pesquisa não encontrada."}), 400
+
+    job_id = str(uuid.uuid4())
+    progress_bus.open(job_id)
+
+    th = threading.Thread(
+        target=_worker_area_reviews,
+        args=(job_id, survey_id, overwrite),
+        daemon=True
+    )
+    th.start()
+    return jsonify({"job_id": job_id}), 200
+#############################################
+#############################################
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=True)

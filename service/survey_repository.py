@@ -1,7 +1,7 @@
 from sqlalchemy import text
 from db_config import engine
 
-
+#OK
 def insert_survey(survey_name: str) -> int | None:
     """
     Insere um registro na tabela 'survey' com o campo survey_name.
@@ -26,6 +26,7 @@ def insert_survey(survey_name: str) -> int | None:
     # Tenta localizar o nome da PK mais comum
     return row.get("survey_id")
 
+#OK
 def list_surveys():
     
     query = text("SELECT survey_id, survey_name FROM survey ORDER BY survey_id DESC")
@@ -35,6 +36,7 @@ def list_surveys():
     
     return [{"id": r["survey_id"], "name": r["survey_name"]} for r in rows]
 
+#OK
 def get_survey(survey_id: int):
     q = text("SELECT survey_id, survey_name FROM survey WHERE survey_id = :id")
     with engine.begin() as conn:
@@ -51,6 +53,7 @@ def get_survey_general_data(survey_id: int):
         return None
     return {"id": row["survey_id"], "name": row["survey_name"]}
 
+#OK
 def get_comments_with_perceptions(survey_id: int):
     # 1) Comentários da pesquisa (join question -> comment)
     q_comments = text("""
@@ -107,7 +110,7 @@ def get_comments_with_perceptions(survey_id: int):
         })
     return rows
 
-
+#OK
 def list_areas_with_non_null_score(survey_id: int) -> list[int]:
  
     sql = text("""
@@ -123,6 +126,7 @@ def list_areas_with_non_null_score(survey_id: int) -> list[int]:
 
     return [{"area_id": int(r["area_id"]), "area_name": (r["area_name"])} for r in rows]
 
+#OK
 def list_perception_themes_for_survey(survey_id: int) -> list[str]:
 
     sql = text("""
@@ -139,10 +143,11 @@ def list_perception_themes_for_survey(survey_id: int) -> list[str]:
         rows = conn.execute(sql, {"sid": survey_id}).mappings().all()
     return [r["theme"] for r in rows if r["theme"] is not None]
 
+#OK
 def get_area_review_plan(area_id: int, survey_id: int):
 
     sql = text("""
-        SELECT 
+        SELECT
             area_survey_id,
             area_review,
             area_plan,
