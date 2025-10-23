@@ -121,10 +121,14 @@
       {# chips com tema + intenção #}
       <div style="margin:6px 0;">
         {% for p in r.perceptions %}
-          {% set intent = (p.perception_intension or 'indefinido')|lower %}
-          {% set bg = 'green lighten-5' if intent == 'positivo' else 'red lighten-5' if intent == 'negativo' else 'grey lighten-4' %}
-          {% set fg = 'green-text text-darken-2' if intent == 'positivo' else 'red-text text-darken-2' if intent == 'negativo' else 'grey-text text-darken-2' %}
-          <span class="chip {{ bg }} {{ fg }}" style="margin-right:4px;">
+          {% set intent = (p.perception_intension or 'indefinido') %}
+          {% set bg = (
+              'green lighten-5' if intent == 'Reconhecimento' else
+              'red lighten-5' if intent == 'Crítica' else
+              'orange lighten-5' if intent == 'Sugestão' else
+              'grey lighten-4'
+          ) %}
+          <span class="chip {{ bg }}" style="margin-right:4px;">
             {{ p.perception_theme }} • {{ intent|capitalize }}
           </span>
         {% endfor %}
@@ -133,14 +137,24 @@
       {# lista detalhada das percepções #}
       <ul class="collection" style="margin-top:8px;">
         {% for p in r.perceptions %}
+          {% set intent = (p.perception_intension or 'indefinido') %}
+          {% set bg = (
+              'green' if intent == 'Reconhecimento' else
+              'red' if intent == 'Crítica' else
+              'orange ' if intent == 'Sugestão' else
+              'grey'
+          ) %}
           <li class="collection-item" style="padding:10px 12px;">
             <i class="material-icons tiny" style="vertical-align:middle;margin-right:4px;">label</i>
             <strong>{{ p.perception_theme }}</strong>
             <span class="grey-text">— {{ (p.perception_intension or 'Indefinido')|capitalize }}</span>
             {% if p.perception_comment_clipping %}
-              <blockquote class="grey lighten-4" style="margin:6px 0 0; padding:6px 10px;">
+            
+              <blockquote class="grey lighten-4" style="margin:6px 0 0; padding:6px 10px; border-left: 5px solid {{ bg }};">
                 {{ p.perception_comment_clipping }}
               </blockquote>
+            
+              
             {% endif %}
           </li>
         {% endfor %}
